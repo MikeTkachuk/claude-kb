@@ -1,0 +1,24 @@
+# The wheel carries only src/kbgraph -- no extra package-data file, since `kb
+# manual` and `kb changelog` both read dist-info's Description field instead
+# of a bundled copy (pyproject.toml's dynamic `readme` key concatenates
+# README.md and CHANGELOG.md into it for every wheel and sdist). The sdist
+# additionally carries everything needed to verify and understand the
+# package, because setuptools' defaults carry almost none of it: its sdist
+# heuristic picks up `tests/test*.py` and leaves the fixtures those files
+# import behind, which ships a suite that cannot run. README.md and
+# CHANGELOG.md are listed here too so the sdist's contents don't depend on
+# the Description field alone.
+include README.md
+include DESIGN.md
+include CHANGELOG.md
+include MANIFEST.in
+recursive-include tests *.py
+recursive-include hooks *
+# The self-describing KB. `tests/test_docs.py` executes the documented read-only
+# commands against this store, so the sdist is verifiable in place.
+include knowledgebase.json
+include knowledgebase.md
+# The baseline goes with them: the docs quote `kb lint --baseline`, which the
+# live pass runs, and without a recorded floor it exits 2. Left out, the sdist
+# fails its own suite on a command that is correct.
+include .kb-baseline.json

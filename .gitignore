@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+
+# Build + install residue. `pip install -e .` writes the egg-info into src/,
+# which is inside the package dir and therefore easy to commit by accident.
+build/
+dist/
+*.egg-info/
+
+.pytest_cache/
+.coverage
+htmlcov/
+
+.venv/
+venv/
+
+.idea/
+.vscode/
+
+claude-log/

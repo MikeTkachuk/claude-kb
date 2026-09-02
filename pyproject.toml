@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kb-graph"
+# Read from src/kbgraph/__init__.py, which `kb --version` also prints. Stated
+# twice, the two drift: this file still said 2.2.0 after the 3.0.0 bump, so an
+# install of "3.0.0" would have carried a 2.2.0 dist-info.
+dynamic = ["version", "readme"]
+description = "Query, lint and author a knowledgebase graph: JSON store, markdown render."
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+# The suites need nothing but the standard library. pytest is supported as a
+# runner (see tests/conftest.py), never required by one.
+test = ["pytest>=7.2"]  # 7.2 for force_exception, used in tests/conftest.py
+
+[project.scripts]
+kb = "kbgraph.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.dynamic]
+version = {attr = "kbgraph.__version__"}
+# `kb manual` and `kb changelog` both read this at runtime, from dist-info's
+# Description field: setuptools concatenates the two files below into it for
+# every wheel and sdist, so one field carries both docs and neither needs its
+# own bundled copy under src/kbgraph/ to survive a wheel install.
+readme = {file = ["README.md", "CHANGELOG.md"], content-type = "text/markdown"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,65 @@
+#!/bin/sh
+# kb-graph pre-commit gate.
+#
+# Install:  cp <kb-graph checkout>/hooks/pre-commit .git/hooks/ && chmod +x .git/hooks/pre-commit
+#           (the sdist carries this file too: pip download --no-binary :all: kb-graph)
+#
+# Three checks, cheapest first. Together they cost ~0.1s on a 104-item KB with
+# a 600-file tree, so this runs on every commit rather than only on the ones
+# that touch the KB -- knowledgebase.md can go stale from a hand-edit in a
+# commit that never mentions it.
+#
+#   validate      the store is a graph at all (structural)
+#   render --check  the md on disk is exactly render(json)  [invariant 6]
+#   lint --errors-only  the graph asserts nothing checkably untrue
+#
+# Warnings deliberately do not block on their absolute count. On the migrated
+# KB 64 of 104 keys were over their type's cap; a gate that failed on those
+# would be switched off in a day, which is worth less than a gate that stays
+# on. Run `kb lint` to see the backlog, `kb lint --all` to see it with every
+# threshold off and every exemption shown, `kb lint --section S` for one team's
+# part of it, and `kb debt` for it grouped by item. What *does* block is a rise
+# against a recorded baseline -- see the fourth check below.
+
+set -e
+
+command -v kb >/dev/null 2>&1 || {
+    echo "kb: not on PATH -- skipping the knowledgebase check" >&2
+    exit 0
+}
+
+# No store in this repo (or any parent): nothing to check.
+kb validate >/dev/null 2>&1 || {
+    kb validate || exit 1
+}
+
+if ! kb render --check >/dev/null 2>&1; then
+    kb render --check || true
+    echo >&2
+    echo "knowledgebase.md is not a render of knowledgebase.json." >&2
+    echo "  hand-edited the md?  translate the diff into kb commands" >&2
+    echo "  edited the store?    run: kb render && git add knowledgebase.md" >&2
+    exit 1
+fi
+
+kb lint --errors-only || {
+    echo >&2
+    echo "Fix the errors above, or suppress one with a reason:" >&2
+    echo "  kb suppress --who <who> --rule <rule> --reason \"…\"" >&2
+    echo "  kb lint --json   prints that command filled in, per finding" >&2
+    exit 1
+}
+
+# The ratchet, and only where one has been recorded: a repo that has never run
+# `kb baseline write` keeps exactly the three checks above. Warnings still do
+# not block on their absolute count -- this blocks on a per-rule rise, which is
+# the thing a backlog is allowed to do and decay is not.
+if [ -f .kb-baseline.json ]; then
+    kb lint --baseline || {
+        echo >&2
+        echo "The graph got worse against .kb-baseline.json." >&2
+        echo "  fix it, or record the new floor deliberately:" >&2
+        echo "  kb baseline write --notes \"why the numbers moved\"" >&2
+        exit 1
+    }
+fi

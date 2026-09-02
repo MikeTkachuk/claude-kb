@@ -1,0 +1,9 @@
+{
+  "rules": {"edge-target": 0, "self-edge": 0, "edge-dup": 0, "code-path": 0, "marker-missing": 0, "marker-unpaired": 0, "marker-unknown": 0, "marker-jsx": 0, "marker-syntax": 0, "summary-longer": 0, "key-length": 14, "key-modal": 2, "orphan": 0, "section-min-items": 0, "subsection-min-items": 0, "keyword-case": 0, "keyword-phrase": 0, "keyword-dup": 0, "keyword-missing": 18, "keyword-broad": 0, "marker-span": 0, "marker-empty": 0, "verified-stale": 0, "edge-kind-missing": 13, "stale-id-mention": 4, "code-drift": 0, "code-inexact": 54, "suppress-stale": 0},
+  "excess_total": 1241,
+  "thresholds": {"edge_kind_share": 0.75, "keyword_broad_share": 0.6, "section_min_items": 3, "subsection_min_items": 2, "stale_months": 6, "max_span": 120},
+  "no_files": false,
+  "recorded": "2026-08-10",
+  "run": "003",
+  "notes": "write-guards: over-cap key refused at write with --suppress-length override; stdin decoded UTF-8; summary-staleness nudge gated to edits past 20% of the key. markers: kb:begin/kb:end take several ids; marker-syntax rejects anything else on the line; kb code fmt tightens and collapses markers (--write); dual-dispatch verbs no longer cross commands"
+}

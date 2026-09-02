@@ -1,0 +1,1652 @@
+{
+  "schema": 4,
+  "title": "kb-graph",
+  "run": "003",
+  "glossary": {
+    "types": {
+      "guardrail": {"desc": "rule or contract whose violation breaks behavior", "key_max": 320, "requires_modal": true},
+      "contract": {"desc": "shape or protocol co-owned with another system", "key_max": 400},
+      "concept": {"desc": "definition or invariant of the area", "key_max": 400},
+      "behavior": {"desc": "what the main path actually does", "key_max": 320},
+      "edge-case": {"desc": "what happens at a boundary or exceptional path", "key_max": 240},
+      "limitation": {"desc": "known gap, deliberately unfixed", "key_max": 240},
+      "design-choice": {"desc": "a road taken, with the road not taken", "key_max": 400},
+      "directive": {"desc": "user-owned top-level priority; overrides every other item", "key_max": 1200, "requires_code": false, "requires_edges": false},
+      "invariant": {"desc": "a property the whole tool is built to preserve", "key_max": 400, "requires_modal": true}
+    },
+    "statuses": {
+      "active": {},
+      "todo": {},
+      "deprecated": {}
+    },
+    "edge_kinds": {
+      "constrains": {"label": "Constrains", "inverse": "Constrained by"},
+      "calls": {"label": "Calls", "inverse": "Called by"},
+      "consumes": {"label": "Consumes", "inverse": "Consumed by"},
+      "refines": {"label": "Refines", "inverse": "Refined by"},
+      "relates": {"label": "Relates to", "inverse": "Referenced by"}
+    }
+  },
+  "sections": {
+    "cli": {"order": 120, "label": "cli"},
+    "ctx": {"order": 70, "label": "ctx"},
+    "debt": {"order": 95, "label": "debt"},
+    "directive": {"order": 10, "label": "directive"},
+    "invariants": {"order": 20, "label": "invariants"},
+    "lint": {"order": 90, "label": "lint"},
+    "markers": {"order": 100, "label": "markers"},
+    "migrate": {"order": 130, "label": "migrate"},
+    "model": {"order": 40, "label": "model"},
+    "read": {"order": 60, "label": "read"},
+    "render": {"order": 50, "label": "render"},
+    "search": {"order": 110, "label": "search"},
+    "store": {"order": 30, "label": "store"},
+    "testing": {"order": 140, "label": "testing"},
+    "write": {"order": 80, "label": "write"}
+  },
+  "items": {
+    "cli.argparse-subaction-column": {
+      "section": "cli",
+      "type": "edge-case",
+      "status": "active",
+      "key": "argparse measures subcommand names at their group indent but prints them two columns deeper, so the longest always wrap. Raising max_help_position cannot help, because the column is a min of the two; the formatter re-measures the choices.",
+      "keywords": ["argparse", "help"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/cli.py", "symbol": "Fmt"}
+      ],
+      "affects": [
+        {"to": "cli.help-is-the-documentation", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "cli.exit-codes": {
+      "section": "cli",
+      "type": "contract",
+      "status": "active",
+      "key": "Exit 0 means the command succeeded. Exit 1 means a check failed and the graph or the tree is at fault: lint errors, render drift, no path between two items. Exit 2 means the invocation was wrong or a mutation was refused before writing anything. Scripts and hooks may rely on the split.",
+      "summary": "0 ok, 1 a check failed, 2 bad usage or a refused mutation.",
+      "keywords": ["exit-codes", "hook"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/cli.py", "symbol": "main"}
+      ],
+      "affects": [
+        {"to": "lint.severity-split", "kind": "constrains"},
+        {"to": "read.path-exits-1-when-disconnected", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-30", "run": "001"}
+    },
+    "cli.global-flags-work-on-both-sides": {
+      "section": "cli",
+      "type": "guardrail",
+      "status": "active",
+      "key": "The global flags are attached to the top-level parser AND every subparser, so --dry-run works on either side of the command name. They MUST carry default=SUPPRESS, or a subparser copy overwrites what the top-level parser set and a dry run becomes a real write.",
+      "summary": "--kb, --root and --dry-run parse before or after the command.",
+      "highlight": true,
+      "keywords": ["argparse", "dry-run"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/cli.py", "symbol": "global_flags"},
+        {"kind": "marker", "path": "src/kbgraph/cli.py"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "cli.help-is-the-documentation": {
+      "section": "cli",
+      "type": "guardrail",
+      "status": "active",
+      "key": "Every subcommand MUST carry a description, and every argument a help string; the commands worth an example carry a worked one in the epilog. A flag whose only documentation is its name is undocumented, and the CLI is the first place anyone looks.",
+      "summary": "Every command carries a description; every argument a help string.",
+      "keywords": ["docs", "help"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/cli.py", "symbol": "build_parser"}
+      ],
+      "affects": [
+        {"to": "invariants.total-command-surface", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "cli.no-store-commands": {
+      "section": "cli",
+      "type": "behavior",
+      "status": "active",
+      "key": "init and migrate run before the store is loaded, because producing a store is what they are for. They are marked needs_store=False and dispatched ahead of the load step; every other command receives an already-validated graph.",
+      "keywords": ["init", "migrate"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/cli.py", "symbol": "cmd_init"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "cli.utf8-lf-console": {
+      "section": "cli",
+      "type": "guardrail",
+      "status": "active",
+      "key": "stdout and stderr MUST be reconfigured to UTF-8 with LF newlines at startup. Output carries middots and arrows, which on a cp1252 console is an UnicodeEncodeError rather than mojibake; and Windows text-mode translation would put a carriage return in every piped id.",
+      "summary": "stdout is forced to UTF-8 and LF on every platform.",
+      "highlight": true,
+      "keywords": ["encoding", "windows"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/cli.py", "symbol": "_utf8_console"},
+        {"kind": "marker", "path": "src/kbgraph/cli.py"}
+      ],
+      "affects": [
+        {"to": "read.impact-ids-only-is-bare", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "cli.version-is-declared-once": {
+      "section": "cli",
+      "type": "guardrail",
+      "status": "active",
+      "key": "The version MUST be written once, in kbgraph.__version__, and read from there by pyproject.toml's dynamic version. Stated in both, they drift silently: pyproject still said 2.2.0 after the 3.0.0 bump, so a built distribution carried a version kb --version contradicted.",
+      "keywords": ["packaging", "version"],
+      "code": [
+        {"kind": "file", "path": "src/kbgraph/__init__.py"},
+        {"kind": "file", "path": "pyproject.toml"}
+      ],
+      "affects": [
+        {"to": "testing.suite-layout", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-30", "modified": "2026-07-30", "verified": "2026-07-30", "run": "001"}
+    },
+    "ctx.budget-degradation": {
+      "section": "ctx",
+      "type": "behavior",
+      "status": "active",
+      "key": "Under --budget the output degrades in fixed steps: neighbour key text is truncated, then the neighbour list is shortened, then the neighbourhood block is replaced by a pointer to kb impact. The head, the root items and the directives are never dropped, so a budgeted context is smaller but never wrong.",
+      "summary": "--budget sheds navigation first, never the head, roots or directives.",
+      "keywords": ["budget", "degradation"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/ctx.py", "symbol": "STEPS"},
+        {"kind": "marker", "path": "src/kbgraph/ctx.py"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "ctx.directives-always-included": {
+      "section": "ctx",
+      "type": "guardrail",
+      "status": "active",
+      "key": "Directives are appended to every context and MUST NEVER be dropped by a budget, because they override every other item -- a context that omits them is not a smaller context, it is one that can argue you into violating one. --no-directives is the explicit opt-out and is almost never what you want.",
+      "summary": "Every context carries the directives; they override everything in it.",
+      "highlight": true,
+      "keywords": ["budget", "directives"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/ctx.py", "symbol": "build"}
+      ],
+      "affects": [
+        {"to": "ctx.budget-degradation", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "ctx.mandatory-first-step": {
+      "section": "ctx",
+      "type": "guardrail",
+      "status": "active",
+      "key": "kb ctx --path <file> MUST be run before editing any source file, and it is not skippable for a fix that looks obvious. The ONLY exception is the user saying so for that request. It replaces grep-the-KB-and-slice-read-it with one question, and it is the command the whole design exists for.",
+      "summary": "ctx --path before touching any file. No exceptions but an explicit one.",
+      "highlight": true,
+      "keywords": ["ctx", "workflow"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/ctx.py", "symbol": "cmd_ctx"}
+      ],
+      "affects": [
+        {"to": "search.idf-bag", "kind": "consumes"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "ctx.root-selection-precedence": {
+      "section": "ctx",
+      "type": "behavior",
+      "status": "active",
+      "key": "Roots come from --path, else --query, else the positional ids, in that order when more than one is given. --path takes the best matching tier only; --query takes the top -n scored items.",
+      "keywords": ["ctx", "query"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/ctx.py", "symbol": "_roots"}
+      ],
+      "affects": [
+        {"to": "model.path-match-tiers", "kind": "consumes"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "ctx.unanchored-path-is-not-silence": {
+      "section": "ctx",
+      "type": "edge-case",
+      "status": "active",
+      "key": "When no item has a code ref to the requested file, ctx says so explicitly and points at --query and dup, because the difference between no rule recorded and no rule applying is exactly where a confident wrong edit comes from.",
+      "summary": "No item at a path means no rule is recorded, not that none applies.",
+      "highlight": true,
+      "keywords": ["ctx", "gaps"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/ctx.py", "symbol": "_roots"}
+      ],
+      "affects": [
+        {"to": "ctx.mandatory-first-step", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "debt.attribution-is-the-who-field": {
+      "section": "debt",
+      "type": "concept",
+      "status": "active",
+      "key": "A finding belongs to an item when its `who` IS an item id, and that is the whole test. Several rules point at something that is not an item -- section-min-items at [section], subsection-min-items at [prefix], keyword-broad at keyword:<kw>, marker-jsx at a path. A per-item view cannot attribute those and inventing an owner for them is where a report starts lying, so they go in their own trailing block. marker-unpaired reports at the id its marker names, so it lands under that item when the item exists.",
+      "keywords": ["attribution", "debt"],
+      "code": [
+        {"kind": "marker", "path": "src/kbgraph/debt.py"}
+      ],
+      "affects": [
+        {"to": "lint.rule-table-is-the-source", "kind": "consumes"}
+      ],
+      "meta": {"created": "2026-07-30", "modified": "2026-07-31", "verified": "2026-07-30", "run": "001"}
+    },
+    "debt.baseline-belongs-in-git": {
+      "section": "debt",
+      "type": "guardrail",
+      "status": "active",
+      "key": "The .kb-baseline.json written by kb baseline write MUST be committed. It is the ratchet's only reference, so an unstaged one means a fresh clone compares against nothing and every regression passes silently.",
+      "keywords": ["baseline", "git"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/debt.py", "symbol": "cmd_baseline"}
+      ],
+      "affects": [
+        {"to": "debt.ratchet-compares-per-rule", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-30", "modified": "2026-07-30", "verified": "2026-07-31", "run": "001"}
+    },
+    "debt.excess-is-the-metric": {
+      "section": "debt",
+      "type": "concept",
+      "status": "active",
+      "key": "Total over-cap excess, not the warning count, is what the hygiene mechanism is graded on: splitting one 17,950-char item into eight raises key-length by seven while cutting the debt by a third. halve_to is max(cap, len//2), so a 500-char key with a 320 cap halves to 320 rather than to 250.",
+      "keywords": ["debt", "excess"],
+      "code": [
+        {"kind": "marker", "path": "src/kbgraph/model.py"}
+      ],
+      "affects": [
+        {"to": "debt.ratchet-compares-per-rule", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-30", "modified": "2026-07-30", "verified": "2026-07-30", "run": "001"}
+    },
+    "debt.ratchet-compares-per-rule": {
+      "section": "debt",
+      "type": "guardrail",
+      "status": "active",
+      "key": "kb lint --baseline MUST compare per rule and against total excess, NEVER a single sum of warnings: a split raises key-length while paying the debt down, and only tracking both numbers lets that pass.",
+      "keywords": ["baseline", "ratchet"],
+      "code": [
+        {"kind": "marker", "path": "src/kbgraph/debt.py"}
+      ],
+      "affects": [
+        {"to": "lint.severity-split", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-30", "modified": "2026-07-30", "verified": "2026-07-30", "run": "001"}
+    },
+    "debt.three-rises-that-are-not-decay": {
+      "section": "debt",
+      "type": "behavior",
+      "status": "active",
+      "key": "Three rises exit 0 and print the kb baseline write that records the new floor: split (key-length up while excess fell), threshold-moved (a rule measuring against a different number because someone ran kb thresholds) and new-rule (a rule the recorded baseline predates). A fourth line, rule-gone, reports a rule the baseline has and this build does not -- renamed or split -- so a disappearance is never read as an improvement.",
+      "keywords": ["adoption", "ratchet"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/debt.py", "symbol": "compare"}
+      ],
+      "affects": [
+        {"to": "debt.ratchet-compares-per-rule", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-30", "modified": "2026-07-31", "verified": "2026-07-30", "run": "001"}
+    },
+    "directive.documented-examples-are-executed": {
+      "section": "directive",
+      "type": "directive",
+      "status": "active",
+      "key": "Documentation is held to the same standard as code: every command shown in help text, README.md, DESIGN.md or CHANGELOG.md MUST have been executed against a real store, and its output pasted rather than imagined. A plausible-looking example that does not parse is worse than no example, because it is trusted. tests/test_docs.py enforces it, over every doc named in its DOCS tuple.",
+      "summary": "Every documented example is run before it ships.",
+      "highlight": true,
+      "keywords": ["docs", "help"],
+      "code": [],
+      "affects": [
+        {"to": "cli.help-is-the-documentation", "kind": "relates"},
+        {"to": "testing.drives-the-cli", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-30", "verified": "2026-07-29", "run": "001"}
+    },
+    "directive.kb-is-the-only-access-path": {
+      "section": "directive",
+      "type": "directive",
+      "status": "active",
+      "key": "The model reaches the graph ONLY through the kb CLI. Never read knowledgebase.json; never grep knowledgebase.md. Every question the graph can answer has a command, so a grep is always the worse answer to a question a command answers exactly. If kb is not on PATH, say so and stop rather than falling back to the md.",
+      "summary": "Read the graph only through `kb`, never the files.",
+      "highlight": true,
+      "keywords": ["access", "cli"],
+      "code": [],
+      "affects": [
+        {"to": "invariants.sole-interface", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "directive.never-hand-edit-either-file": {
+      "section": "directive",
+      "type": "directive",
+      "status": "active",
+      "key": "knowledgebase.json and knowledgebase.md are written by kb and by nothing else. A hand-edit to the md is translated back into kb commands by a model reading the diff, never absorbed; a hand-edit to the json is a canonical-form and validation bypass. The two are committed together, because render --check fails on any drift between them.",
+      "summary": "Both KB files are written by `kb` alone.",
+      "highlight": true,
+      "keywords": ["commit", "render"],
+      "code": [],
+      "affects": [
+        {"to": "invariants.both-files-committed", "kind": "relates"},
+        {"to": "invariants.no-md-parser", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "directive.trust-the-code": {
+      "section": "directive",
+      "type": "directive",
+      "status": "active",
+      "key": "When the graph and the code disagree, the code is right and the graph is stale. Fix the item, do not argue from it. After any edit, update every item whose key the change made false.",
+      "summary": "Code wins over the graph; update the graph.",
+      "keywords": ["drift", "verify"],
+      "code": [],
+      "affects": [
+        {"to": "write.verified-is-not-modified", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "invariants.both-files-committed": {
+      "section": "invariants",
+      "type": "invariant",
+      "status": "active",
+      "key": "The store and its render MUST be committed together and MUST NEVER be staged apart. Pre-commit runs render --check, which fails when the md on disk is not exactly render(json), catching a stale render and a hand-edit with one test.",
+      "keywords": ["commit", "hook"],
+      "code": [
+        {"kind": "file", "path": "hooks/pre-commit"}
+      ],
+      "affects": [
+        {"to": "render.check-is-the-gate", "kind": "constrains"},
+        {"to": "write.touch-and-commit", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "invariants.derive-everything-derivable": {
+      "section": "invariants",
+      "type": "invariant",
+      "status": "active",
+      "key": "Anything derivable MUST be derived rather than stored: inverse edges, section membership, section adjacency, the index, and marker line numbers. Stored redundancy is stored drift.",
+      "summary": "Stored data has no redundancy, so it cannot self-contradict.",
+      "keywords": ["derived", "drift"],
+      "code": [
+        {"kind": "file", "path": "src/kbgraph/model.py", "digest": "sha256:44fdf59571c5da28"}
+      ],
+      "affects": [
+        {"to": "model.derived-inverse", "kind": "constrains"},
+        {"to": "model.no-line-numbers", "kind": "constrains"},
+        {"to": "render.derived-sections", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-08-02", "run": "001"}
+    },
+    "invariants.indexes-are-zero-based": {
+      "section": "invariants",
+      "type": "invariant",
+      "status": "active",
+      "key": "Every index kb prints or accepts MUST be 0-based. Code refs are the only entity addressed by position today -- edges go by target, keywords by term -- and kb code rm, kb suppress --ref, kb item and lint.relocations now agree. An index that is never printed cannot be checked by the reader, so the number is shown wherever a ref is.",
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/read.py", "symbol": "show_item"}
+      ],
+      "affects": [
+        {"to": "invariants.total-command-surface", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-07-31", "verified": "2026-07-31", "run": "001"}
+    },
+    "invariants.md-is-one-way": {
+      "section": "invariants",
+      "type": "invariant",
+      "status": "active",
+      "key": "knowledgebase.md is rendered one-way from the store and is ONLY ever read by humans. Because the model does not read it, the render optimises for comprehension rather than grep-ability.",
+      "summary": "Markdown is a render for humans, never an input.",
+      "highlight": true,
+      "keywords": ["markdown", "render"],
+      "code": [
+        {"kind": "file", "path": "src/kbgraph/render.py"}
+      ],
+      "affects": [
+        {"to": "render.check-is-the-gate", "kind": "constrains"},
+        {"to": "render.derived-sections", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "invariants.never-writes-source": {
+      "section": "invariants",
+      "type": "invariant",
+      "status": "active",
+      "key": "kb writes source in EXACTLY one command, kb code fmt --write, only to move a marker across a blank or merge adjacent markers: it MUST NEVER change a non-marker, non-blank line, which fmt_check re-verifies before writing. Markers are still placed by hand; lint --fix writes only the store.",
+      "summary": "kb is read-only against the source tree.",
+      "highlight": true,
+      "keywords": ["invariant", "markers"],
+      "code": [
+        {"kind": "file", "path": "src/kbgraph/lint.py", "digest": "sha256:41f70e9b4409c108"},
+        {"kind": "symbol", "path": "src/kbgraph/markers.py", "symbol": "fmt_check"}
+      ],
+      "affects": [
+        {"to": "lint.fix-is-store-only", "kind": "constrains"},
+        {"to": "markers.hand-placed-with-a-printed-pair", "kind": "constrains"},
+        {"to": "markers.only-kind-with-snippets", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-08-10", "verified": "2026-08-10", "run": "002"}
+    },
+    "invariants.no-md-parser": {
+      "section": "invariants",
+      "type": "invariant",
+      "status": "active",
+      "key": "No markdown parser exists in either direction, so a hand-edit to the md can NEVER be absorbed automatically. It is translated into kb commands by a model reading git diff knowledgebase.md.",
+      "keywords": ["markdown", "parser"],
+      "code": [
+        {"kind": "file", "path": "src/kbgraph/render.py"}
+      ],
+      "affects": [
+        {"to": "invariants.md-is-one-way", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "invariants.sole-interface": {
+      "section": "invariants",
+      "type": "invariant",
+      "status": "active",
+      "key": "The CLI MUST be the only interface to the graph. This is what pays for the JSON store: the engine assembles exactly the right context in one call instead of the model guessing slice offsets in a markdown file.",
+      "summary": "Every question is a command, not a file read.",
+      "highlight": true,
+      "keywords": ["cli", "invariant"],
+      "code": [
+        {"kind": "file", "path": "src/kbgraph/cli.py"}
+      ],
+      "affects": [
+        {"to": "cli.help-is-the-documentation", "kind": "constrains"},
+        {"to": "ctx.mandatory-first-step", "kind": "constrains"},
+        {"to": "read.impact-ids-only-is-bare", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "invariants.total-command-surface": {
+      "section": "invariants",
+      "type": "invariant",
+      "status": "active",
+      "key": "The command surface MUST be total: every writable field has EXACTLY one command, and every question answerable from the graph has a command that answers it. A field reachable only by hand-editing JSON is a bug, and so is a question that can only be answered by reading a file.",
+      "summary": "One command per writable field, in both directions.",
+      "highlight": true,
+      "keywords": ["coverage", "invariant"],
+      "code": [
+        {"kind": "file", "path": "src/kbgraph/write.py"}
+      ],
+      "affects": [
+        {"to": "cli.no-store-commands", "kind": "constrains"},
+        {"to": "write.dual-dispatch", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-30", "run": "001"}
+    },
+    "lint.basis-mismatch-suspends": {
+      "section": "lint",
+      "type": "guardrail",
+      "status": "active",
+      "key": "A suppression carrying a basis is SUSPENDED once that basis stops matching: the finding returns at full severity and suppress-stale names the entry with its reason. The entry is never deleted -- the reason is the expensive part -- and only kb suppress re-stamps it. kb verify deliberately does not, so re-verifying an item whose code moved invalidates its code-based exemptions rather than renewing them in passing.",
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/lint.py", "symbol": "_basis_moved"},
+        {"kind": "marker", "path": "src/kbgraph/lint.py"}
+      ],
+      "affects": [
+        {"to": "write.suppression-records-its-basis", "kind": "consumes"},
+        {"to": "write.verified-is-not-modified", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-08-10", "verified": "2026-07-31", "run": "002"}
+    },
+    "lint.edge-kinds-are-judged-per-section": {
+      "section": "lint",
+      "type": "behavior",
+      "status": "active",
+      "key": "edge-kind-missing fires for an item with a bare edge only while its SECTION labels less than edge_kind_share (0.75) of its edges -- not the store, because a section is the scope a consumer team owns and the number it is judged on has to be one it can move. A section with no edges scores 1.0. Findings held back by the threshold are counted and reported, never silently dropped.",
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/lint.py", "symbol": "section_edge_share"},
+        {"kind": "marker", "path": "src/kbgraph/lint.py"}
+      ],
+      "affects": [
+        {"to": "lint.thresholds-not-gates", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-08-10", "verified": "2026-07-31", "run": "002"}
+    },
+    "lint.fix-is-store-only": {
+      "section": "lint",
+      "type": "guardrail",
+      "status": "active",
+      "key": "lint --fix does the one mechanical repair there is -- repointing a marker ref whose region now lives in exactly one other file -- and MUST write only the store, never source. It refuses to guess when the region turns up in more than one place.",
+      "keywords": ["fix", "markers"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/lint.py", "symbol": "_fix"},
+        {"kind": "marker", "path": "src/kbgraph/lint.py", "digest": "sha256:8078eb3fc81f2247"}
+      ],
+      "affects": [
+        {"to": "lint.tree-scan", "kind": "consumes"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-08-10", "run": "002"}
+    },
+    "lint.id-mentions-need-a-section-prefix": {
+      "section": "lint",
+      "type": "design-choice",
+      "status": "active",
+      "key": "stale-id-mention flags a prose token only when its first segment is a known section id and its last is not a file extension. Recall is traded for precision because 11 of this repo's 14 section ids are also module names: without the extension guard the rule reports lint.py and render.py as dead ids.",
+      "code": [
+        {"kind": "marker", "path": "src/kbgraph/lint.py"}
+      ],
+      "meta": {"created": "2026-07-30", "modified": "2026-07-30", "verified": "2026-07-30", "run": "001"}
+    },
+    "lint.json-carries-the-remedy": {
+      "section": "lint",
+      "type": "behavior",
+      "status": "active",
+      "key": "kb lint --json emits every finding with the exact kb suppress command that silences it, generated from the finding's own fields rather than written by hand, so what lint prints and what suppress accepts cannot drift. The reader this serves holds one line of output and no other context; a four-column text layout that never says which columns are the arguments serves it badly. The two unsuppressible rules carry a resolve hint instead.",
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/lint.py", "symbol": "_json"}
+      ],
+      "affects": [
+        {"to": "lint.two-rules-cannot-be-suppressed", "kind": "consumes"},
+        {"to": "lint.who-is-the-suppression-key", "kind": "consumes"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-07-31", "verified": "2026-07-31", "run": "001"}
+    },
+    "lint.legacy-widens-the-known-section-gate": {
+      "section": "lint",
+      "type": "design-choice",
+      "status": "active",
+      "key": "stale-id-mention's known-section gate also recognises a retired name from lint.legacy, but only kind 'section': that closes the one real detection gap (the old prefix is gone entirely), while an item or subsection keeps resolving fine on its own, so widening for those would add legacy entries with no lint benefit.",
+      "keywords": ["legacy", "lint"],
+      "code": [
+        {"kind": "marker", "path": "src/kbgraph/lint.py"}
+      ],
+      "affects": [
+        {"to": "lint.id-mentions-need-a-section-prefix", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-08-02", "modified": "2026-08-02", "verified": "2026-08-02", "run": "002"}
+    },
+    "lint.marker-line-carries-ids-only": {
+      "section": "lint",
+      "type": "guardrail",
+      "status": "active",
+      "key": "marker-syntax is an ERROR: a kb: comment line MUST be kb:begin or kb:end followed by ids and a closer, no id twice, nothing else. Trailing prose used to be ignored, letting a corrupted marker delimit a region at the wrong place.",
+      "keywords": ["lint", "markers"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/markers.py", "symbol": "marker_ids"}
+      ],
+      "affects": [
+        {"to": "lint.severity-split", "kind": "refines"},
+        {"to": "markers.pair-syntax", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-08-10", "modified": "2026-08-10", "verified": "2026-08-10", "run": "002"}
+    },
+    "lint.marker-refs-are-the-exact-form": {
+      "section": "lint",
+      "type": "guardrail",
+      "status": "active",
+      "key": "A symbol ref records an intention, not a fact: nothing checks the symbol is still in the file, digest_ref returns None for it, so it never drifts and never carries a content basis. code-inexact fires per symbol ref on any item with no marker ref beside it, and its message carries the kb:begin/kb:end pair and the follow-up command ready to paste. An item that has marked a region anywhere is silent.",
+      "code": [
+        {"kind": "marker", "path": "src/kbgraph/lint.py"}
+      ],
+      "affects": [
+        {"to": "lint.who-is-the-suppression-key", "kind": "relates"},
+        {"to": "markers.only-kind-with-snippets", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-07-31", "verified": "2026-07-31", "run": "001"}
+    },
+    "lint.no-files-mode": {
+      "section": "lint",
+      "type": "behavior",
+      "status": "active",
+      "key": "lint --no-files drops every rule that touches the tree, which is what makes the command usable against a store kept away from the repo it describes, or in an environment where the tree is not checked out.",
+      "keywords": ["lint", "portability"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/lint.py", "symbol": "run"}
+      ],
+      "affects": [
+        {"to": "lint.tree-scan", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "lint.no-summary-stale-rule": {
+      "section": "lint",
+      "type": "limitation",
+      "status": "active",
+      "key": "There is deliberately no rule for a summary left behind by a later key edit. meta is per item rather than per field, so the store cannot answer the question and no honest implementation exists. A write-time nudge in kb set replaces it.",
+      "keywords": ["meta", "summary"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/lint.py", "symbol": "cmd_lint"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "lint.nothing-is-hidden-silently": {
+      "section": "lint",
+      "type": "guardrail",
+      "status": "active",
+      "key": "Every finding a run does not print MUST be counted in its summary: N hidden by thresholds, N suppressed, N outside this scope. kb lint --all then turns off every threshold and prints suppressed findings tagged. A consumer repo committing to fix everything in its scope needs a report it can trust to be complete, and a number it cannot see is one it cannot plan around.",
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/lint.py", "symbol": "_summary"}
+      ],
+      "affects": [
+        {"to": "lint.scope-reports-what-it-skipped", "kind": "constrains"},
+        {"to": "lint.thresholds-not-gates", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-07-31", "verified": "2026-07-31", "run": "001"}
+    },
+    "lint.rule-table-is-the-source": {
+      "section": "lint",
+      "type": "concept",
+      "status": "active",
+      "key": "The RULES tuple is the single source for rule names, severities and descriptions. It backs lint --list, the --rule filter and the names kb suppress accepts -- and refuses, since an unknown name is now an error rather than a recorded entry that silences nothing. A rule cannot exist under one name in the code and another in the docs.",
+      "keywords": ["rules", "suppress"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/lint.py", "symbol": "RULES"},
+        {"kind": "marker", "path": "src/kbgraph/lint.py", "digest": "sha256:dce11eb459bb8b18"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-31", "verified": "2026-08-10", "run": "002"}
+    },
+    "lint.scope-reports-what-it-skipped": {
+      "section": "lint",
+      "type": "behavior",
+      "status": "active",
+      "key": "kb lint takes ids, --section and --surfaced-file, the set kb debt already accepted. A finding is in scope when its subject is: an item in the scope, or a [section] / [prefix] inside it. Findings about the whole store -- keyword:<kw>, a marker in a file no item claims -- belong to no section and are counted out loud in the summary rather than dropped, because a scoped report that does not say what it skipped cannot be trusted for what it kept.",
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/lint.py", "symbol": "Scope"},
+        {"kind": "marker", "path": "src/kbgraph/lint.py"}
+      ],
+      "affects": [
+        {"to": "debt.attribution-is-the-who-field", "kind": "consumes"},
+        {"to": "lint.who-is-the-suppression-key", "kind": "consumes"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-07-31", "verified": "2026-07-31", "run": "001"}
+    },
+    "lint.severity-split": {
+      "section": "lint",
+      "type": "guardrail",
+      "status": "active",
+      "key": "An error means the graph asserts something checkably untrue and is the ONLY severity that moves the exit code on its own. A warning means the graph is true but not yet good: 64 of 104 migrated keys were over cap, and a gate failing on those dies in a day. Under --baseline a warning exits 1, but only by getting worse.",
+      "summary": "Only errors move the exit code; warnings are a backlog.",
+      "highlight": true,
+      "keywords": ["hook", "severity"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/lint.py", "symbol": "RULES"},
+        {"kind": "marker", "path": "src/kbgraph/lint.py", "digest": "sha256:dce11eb459bb8b18"}
+      ],
+      "affects": [
+        {"to": "lint.rule-table-is-the-source", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-30", "verified": "2026-08-10", "run": "002"}
+    },
+    "lint.suppression-needs-reason": {
+      "section": "lint",
+      "type": "guardrail",
+      "status": "active",
+      "key": "Suppressing a lint finding MUST carry --reason, because a suppression without one is indistinguishable from giving up. The entry lives on the item when the finding's `who` is an item id and in the store's root `lint` key when it is not, and `kb suppress --list`, `kb stats` and every lint summary report the live count so escape hatches cannot quietly accumulate.",
+      "summary": "A suppression without a reason is refused.",
+      "highlight": true,
+      "keywords": ["reason", "suppress"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "cmd_suppress"}
+      ],
+      "affects": [
+        {"to": "lint.severity-split", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-31", "verified": "2026-07-29", "run": "001"}
+    },
+    "lint.thresholds-not-gates": {
+      "section": "lint",
+      "type": "design-choice",
+      "status": "active",
+      "key": "No rule silences itself for want of adoption. What remains is thresholds: a number the rule measures against, defaulted in model.THRESHOLDS, stored per repo and overridable per run, with the flag beating the store beating the default. Resolved once per run onto the Result, so the rules, the summary and the baseline read the same numbers by construction.",
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/lint.py", "symbol": "thresholds"},
+        {"kind": "marker", "path": "src/kbgraph/lint.py"}
+      ],
+      "affects": [
+        {"to": "lint.severity-split", "kind": "refines"},
+        {"to": "store.thresholds-are-per-repo", "kind": "consumes"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-08-10", "verified": "2026-07-31", "run": "002"}
+    },
+    "lint.tree-scan": {
+      "section": "lint",
+      "type": "behavior",
+      "status": "active",
+      "key": "The marker pass walks the whole tree rather than only the paths items name, which is what lets marker-unknown and the relocation hint exist at all: both are questions about markers the store does not know where to look for. It skips vendored and generated directories and early-outs on files with no kb: in them.",
+      "summary": "Lint walks the tree, not just the paths items claim.",
+      "keywords": ["markers", "performance"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/lint.py", "symbol": "_scan_tree"},
+        {"kind": "marker", "path": "src/kbgraph/lint.py", "digest": "sha256:5807fd9c26bd3136"}
+      ],
+      "affects": [
+        {"to": "markers.stack-pairing", "kind": "consumes"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-08-10", "run": "002"}
+    },
+    "lint.two-rules-cannot-be-suppressed": {
+      "section": "lint",
+      "type": "edge-case",
+      "status": "active",
+      "key": "Two rules kb suppress refuses by name. suppress-stale reports exemptions that no longer resolve, so an entry silencing it would hide the thing it exists to surface and would itself be invisible to the rule that would have found it. code-drift has no basis it could be granted against -- the only honest one is the ref's content, which is what re-fires it -- so its exemption would lapse on the next edit; the refusal names kb verify instead.",
+      "code": [
+        {"kind": "marker", "path": "src/kbgraph/lint.py"}
+      ],
+      "affects": [
+        {"to": "lint.basis-mismatch-suspends", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-07-31", "verified": "2026-07-31", "run": "001"}
+    },
+    "lint.who-is-the-suppression-key": {
+      "section": "lint",
+      "type": "guardrail",
+      "status": "active",
+      "key": "Every finding's `who` MUST be a stable identifier of its subject: an item id, a [section], a [prefix], a keyword:<kw>, or a path. It MUST NOT carry a line number or a sentinel standing for the whole store, because `who` is the suppression key and an exemption keyed on something that moves stops matching without saying so. File positions belong in the message.",
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/lint.py", "symbol": "_file_rules"},
+        {"kind": "marker", "path": "src/kbgraph/lint.py"}
+      ],
+      "affects": [
+        {"to": "debt.attribution-is-the-who-field", "kind": "constrains"},
+        {"to": "lint.suppression-needs-reason", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-08-10", "verified": "2026-07-31", "run": "002"}
+    },
+    "markers.fmt-touches-markers-and-blanks-only": {
+      "section": "markers",
+      "type": "guardrail",
+      "status": "active",
+      "key": "kb code fmt tightens by SWAPPING a marker with the blank beside it, not deleting it, so line count and layout survive; only collapse removes a line. It MUST re-read its output, confirm non-marker lines and region coverage are unchanged, and MUST leave a file alone -- with the reason -- when it cannot.",
+      "keywords": ["fmt", "markers"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/markers.py", "symbol": "fmt_text"},
+        {"kind": "marker", "path": "src/kbgraph/markers.py"}
+      ],
+      "affects": [
+        {"to": "invariants.never-writes-source", "kind": "refines"},
+        {"to": "markers.pair-syntax", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-08-10", "modified": "2026-08-10", "verified": "2026-08-10", "run": "002"}
+    },
+    "markers.hand-placed-with-a-printed-pair": {
+      "section": "markers",
+      "type": "behavior",
+      "status": "active",
+      "key": "An unmarked ref advertises itself in kb code and kb ctx --code by printing the exact begin/end lines to paste, in that file's comment form. No command places a marker and none deliberately will: kb code fmt only tidies pairs a human already placed.",
+      "summary": "kb prints the exact pair to paste; placing it is yours.",
+      "keywords": ["markers", "workflow"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/markers.py", "symbol": "pair"},
+        {"kind": "marker", "path": "src/kbgraph/markers.py"}
+      ],
+      "affects": [
+        {"to": "markers.pair-syntax", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-08-10", "verified": "2026-07-29", "run": "002"}
+    },
+    "markers.jsx-comment-form": {
+      "section": "markers",
+      "type": "guardrail",
+      "status": "active",
+      "key": "A // marker inside JSX children renders as visible text on the page with no compile error -- the one silent failure mode in the scheme. In .tsx the brace-comment form MUST be used inside JSX, lint has a dedicated error for it, and the pair helper always suggests the safe form for a .tsx file.",
+      "summary": "In JSX children use {/* … */}: a // marker renders as page text.",
+      "highlight": true,
+      "keywords": ["jsx", "tsx"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/markers.py", "symbol": "jsx_risk"},
+        {"kind": "marker", "path": "src/kbgraph/markers.py"}
+      ],
+      "affects": [
+        {"to": "markers.pair-syntax", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "markers.merge-on-intersection-only": {
+      "section": "markers",
+      "type": "guardrail",
+      "status": "active",
+      "key": "Two regions MUST merge only when their line ranges actually intersect. Regions a few lines apart are apart for a reason, and merging them would invent a contiguity that is not in the source and hide the gap; a merged block credits every contributing item in its header.",
+      "keywords": ["markers", "snippets"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/markers.py", "symbol": "merge"},
+        {"kind": "marker", "path": "src/kbgraph/markers.py", "digest": "sha256:caae47a50403eb04"}
+      ],
+      "affects": [
+        {"to": "markers.stack-pairing", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-08-10", "run": "002"}
+    },
+    "markers.one-region-printed-once": {
+      "section": "markers",
+      "type": "guardrail",
+      "status": "active",
+      "key": "A range two items both mark MUST be read and printed EXACTLY once, with every contributor named in its header. Per-item merging cannot do that, so kb ctx --code and multi-id kb code share one merged plan; later contributors get a cross-reference.",
+      "keywords": ["markers", "merge", "snippets"],
+      "code": [
+        {"kind": "marker", "path": "src/kbgraph/markers.py", "digest": "sha256:6366a1fb061f9ae3"}
+      ],
+      "affects": [
+        {"to": "markers.merge-on-intersection-only", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-08-10", "run": "002"}
+    },
+    "markers.only-kind-with-snippets": {
+      "section": "markers",
+      "type": "limitation",
+      "status": "active",
+      "key": "ONLY a marker ref yields a snippet. Extracting one from a bare symbol needs real TypeScript parsing: brace matching fails silently on braces inside strings, template literals and regex literals, and a truncated snippet is worse than none.",
+      "keywords": ["snippets", "symbols"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/markers.py", "symbol": "snippet"}
+      ],
+      "affects": [
+        {"to": "markers.pair-syntax", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-08-10", "run": "002"}
+    },
+    "markers.own-line-and-own-language": {
+      "section": "markers",
+      "type": "guardrail",
+      "status": "active",
+      "key": "A marker counts ONLY when it opens its own line and uses the comment form of that file extension. Both halves are load-bearing: they are what make a quoted marker in a test fixture and a fenced // example in a markdown file inert, so a repo that documents this scheme does not report its own examples as broken markers.",
+      "summary": "A marker counts only on its own line, in that file comment form.",
+      "highlight": true,
+      "keywords": ["markers", "scanning"],
+      "code": [
+        {"kind": "marker", "path": "src/kbgraph/markers.py"},
+        {"kind": "symbol", "path": "src/kbgraph/markers.py", "symbol": "openers_for"}
+      ],
+      "affects": [
+        {"to": "lint.tree-scan", "kind": "constrains"},
+        {"to": "markers.jsx-comment-form", "kind": "relates"},
+        {"to": "markers.pair-syntax", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "markers.pair-syntax": {
+      "section": "markers",
+      "type": "concept",
+      "status": "active",
+      "key": "A marker is a kb:begin and kb:end pair inside comments, each naming one or more ids, every id repeated on the end so pairing never depends on order or nesting. A line MUST carry ids and nothing else: trailing text is marker-syntax, not prose. One comment form per extension: // /* */ # <!-- -->.",
+      "summary": "kb:begin <id> / kb:end <id> in a comment, id repeated on both.",
+      "highlight": true,
+      "keywords": ["markers", "syntax"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/markers.py", "symbol": "MARK"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-08-10", "verified": "2026-07-29", "run": "002"}
+    },
+    "markers.stack-pairing": {
+      "section": "markers",
+      "type": "behavior",
+      "status": "active",
+      "key": "Pairing is a stack keyed by item id, so regions from different items may overlap and nest freely, identified by order of appearance at read time. Every id on a multi-id line gets its own push, equivalent to that many stacked lines, so kb:end can close one alone. Instance numbers are never assigned or stored.",
+      "keywords": ["markers", "nesting"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/markers.py", "symbol": "scan_text"},
+        {"kind": "marker", "path": "src/kbgraph/markers.py", "digest": "sha256:c95ad070f53c8b32"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-08-10", "verified": "2026-08-10", "run": "002"}
+    },
+    "migrate.bullet-map-is-explicit": {
+      "section": "migrate",
+      "type": "design-choice",
+      "status": "active",
+      "key": "The v1 section-header bullets are attached to the items they restate by an explicit hand-checked map, not by matching. IDF matching was tried and rejected: it put the token-location bullet on the SSR guard and swapped two testing items, and a section header quietly attached to the wrong item is exactly the drift the schema exists to remove.",
+      "keywords": ["idf", "migrate"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/migrate.py", "symbol": "BULLET_MAP"}
+      ],
+      "affects": [
+        {"to": "search.idf-bag", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "migrate.dates-from-git": {
+      "section": "migrate",
+      "type": "behavior",
+      "status": "active",
+      "key": "created and modified are recovered by replaying the markdown files git history, one show per commit that touched it, which beat one log -S per item by an order of magnitude. verified is seeded from modified rather than reset to the migration date, so the staleness lint means something on day one.",
+      "summary": "Item dates are replayed from git history, not stamped with today.",
+      "highlight": true,
+      "keywords": ["dates", "git"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/migrate.py", "symbol": "cmd_migrate"}
+      ],
+      "affects": [
+        {"to": "write.verified-is-not-modified", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "migrate.edges-unioned": {
+      "section": "migrate",
+      "type": "behavior",
+      "status": "active",
+      "key": "v1 stored both directions and they had drifted apart, so migration takes the union: outbound becomes Affects plus the inverse of every Affected by. Trusting Affects alone would have silently deleted around forty one-sided edges.",
+      "keywords": ["edges", "v1"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/migrate.py", "symbol": "build"}
+      ],
+      "affects": [
+        {"to": "model.derived-inverse", "kind": "consumes"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "migrate.one-way-only": {
+      "section": "migrate",
+      "type": "guardrail",
+      "status": "active",
+      "key": "Migration MUST be one-way. Nothing turns a v2 store back into v1 markdown and nothing downgrades a schema, but kb migrate --to N raises an existing store forward -- from schema 2 or 3 to 4, in one stamp either way, since every field both schemas added is optional. kb 4.x carries no code that reads two formats at once: an older store is refused at load with the upgrade command named, and --to N naming anything but the build's own schema is refused rather than silently upgraded further.",
+      "keywords": ["migrate", "v1"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/migrate.py", "symbol": "cmd_migrate"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-31", "verified": "2026-07-29", "run": "001"}
+    },
+    "model.derived-inverse": {
+      "section": "model",
+      "type": "concept",
+      "status": "active",
+      "key": "Edges are stored on the source item only, as {to, kind}. The inbound map is computed from them on demand and cached per load. This is what deletes v1 edge symmetry as an invariant, its lint rule, and its two-sided writes: there is one write and it cannot go half-done.",
+      "summary": "Only `affects` is stored; every inverse is computed.",
+      "highlight": true,
+      "keywords": ["derived", "edges"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/model.py", "symbol": "Graph.inbound"},
+        {"kind": "marker", "path": "src/kbgraph/model.py"}
+      ],
+      "affects": [
+        {"to": "render.derived-sections", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "model.id-is-section-membership": {
+      "section": "model",
+      "type": "guardrail",
+      "status": "active",
+      "key": "An item id MUST be <section>.<slug>, lowercase dotted or dashed, and its prefix MUST match its section field. Membership is therefore not stored twice and cannot drift, and moving an item between sections is ALWAYS a rename.",
+      "summary": "An item id prefix IS its section; a move is always a rename.",
+      "keywords": ["ids", "sections"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/model.py", "symbol": "Graph._validate_item"}
+      ],
+      "affects": [
+        {"to": "write.rename-repoints-every-edge", "kind": "constrains"},
+        {"to": "write.subsection-rename-mirrors-section-rename", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-08-02", "verified": "2026-07-29", "run": "002"}
+    },
+    "model.no-line-numbers": {
+      "section": "model",
+      "type": "guardrail",
+      "status": "active",
+      "key": "A code ref MUST NEVER carry a line number, and validation rejects a path containing one. Line numbers are resolved from markers on every read, because a stored line number is stale the next time anyone edits the file.",
+      "keywords": ["code-refs", "markers"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/model.py", "symbol": "Graph._validate_item"},
+        {"kind": "marker", "path": "src/kbgraph/model.py"}
+      ],
+      "affects": [
+        {"to": "markers.pair-syntax", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "model.path-match-tiers": {
+      "section": "model",
+      "type": "behavior",
+      "status": "active",
+      "key": "Matching an item to a file path tries exact, then path-suffix in either direction, then loose (same basename, or the query appearing anywhere in the ref). The best tier that hits at all wins outright, so a precise hit is never diluted by loose ones.",
+      "keywords": ["ctx", "paths"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/model.py", "symbol": "Graph.match_paths"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "model.prefix-resolution": {
+      "section": "model",
+      "type": "behavior",
+      "status": "active",
+      "key": "Every command that takes an id resolves it in three tiers: exact, then unique suffix after a dot, then unique substring. An ambiguous fragment raises with the candidates listed rather than picking one, and an unknown one raises rather than crashing. This is why ids can be typed the way they are read.",
+      "summary": "Ids resolve by exact match, then unique suffix, then unique substring.",
+      "highlight": true,
+      "keywords": ["ids", "resolution"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/model.py", "symbol": "Graph.get"},
+        {"kind": "marker", "path": "src/kbgraph/model.py"}
+      ],
+      "affects": [
+        {"to": "ctx.root-selection-precedence", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "model.subsection-longest-prefix-wins": {
+      "section": "model",
+      "type": "guardrail",
+      "status": "active",
+      "key": "An item MUST belong to the deepest declared subsection whose prefix it sits under, and to no other. A bare startswith puts pages.a.b.c in pages.a, pages.a.b and pages.a.b.c at once, so membership stops being a function and the render duplicates the item.",
+      "code": [
+        {"kind": "marker", "path": "src/kbgraph/model.py"}
+      ],
+      "affects": [
+        {"to": "invariants.derive-everything-derivable", "kind": "refines"},
+        {"to": "model.id-is-section-membership", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-30", "modified": "2026-07-30", "verified": "2026-07-30", "run": "001"}
+    },
+    "model.validate-is-structural": {
+      "section": "model",
+      "type": "concept",
+      "status": "active",
+      "key": "validate covers only what must hold for the graph to be a graph: schema version, id shape, required fields, known types and statuses and edge kinds, well-formed refs and dates. Every judgment call -- length, staleness, orphanhood -- belongs to lint, which runs on a store that already loaded.",
+      "summary": "validate = is this a graph at all; lint = is it any good.",
+      "keywords": ["lint", "validation"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/model.py", "symbol": "Graph.validate"}
+      ],
+      "affects": [
+        {"to": "write.validate-before-write", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-30", "run": "001"}
+    },
+    "read.guardrails-follows-the-glossary": {
+      "section": "read",
+      "type": "behavior",
+      "status": "active",
+      "key": "The guardrails command lists items whose type is declared requires_modal in the glossary, not items of a type literally named guardrail. Adding a modal-carrying type therefore extends the command with no code change.",
+      "keywords": ["glossary", "modal"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/read.py", "symbol": "cmd_guardrails"}
+      ],
+      "affects": [
+        {"to": "lint.rule-table-is-the-source", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "read.impact-ids-only-is-bare": {
+      "section": "read",
+      "type": "guardrail",
+      "status": "active",
+      "key": "impact --ids-only MUST emit bare ids, one per line, with no header and no section lines. The flag exists so the closure can be piped into xargs kb verify, and any decoration in that stream becomes an argument to the next command.",
+      "summary": "`impact --ids-only` prints ids and nothing else, so it pipes.",
+      "highlight": true,
+      "keywords": ["impact", "pipe"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/read.py", "symbol": "cmd_impact"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "read.kw-suggest-writes-nothing": {
+      "section": "read",
+      "type": "behavior",
+      "status": "active",
+      "key": "kw-suggest prints a ready-to-run kb kw add line per item and writes nothing. A keyword that does not discriminate is worse than no keyword, and only a human can tell which of the IDF-ranked candidates do, so acceptance is a separate deliberate step.",
+      "keywords": ["idf", "keywords"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/read.py", "symbol": "cmd_kw_suggest"}
+      ],
+      "affects": [
+        {"to": "search.idf-bag", "kind": "consumes"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "read.path-exits-1-when-disconnected": {
+      "section": "read",
+      "type": "edge-case",
+      "status": "active",
+      "key": "path runs breadth-first over edges in both directions, since a stored direction is about causality rather than reachability. Two disconnected items are reported as such and exit 1, which makes the command usable as a test.",
+      "keywords": ["exit-code", "path"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/read.py", "symbol": "cmd_path"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "read.tree-vs-impact": {
+      "section": "read",
+      "type": "concept",
+      "status": "active",
+      "key": "tree is an indented recursive walk that revisits a shared descendant once per path to it and marks a repeat on one branch as a cycle. impact is the deduped closure grouped by section with a depth mark. Use tree to understand shape, impact to answer what must be re-verified.",
+      "summary": "tree shows shape and repeats; impact shows the set and dedupes.",
+      "keywords": ["impact", "tree"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/read.py", "symbol": "cmd_tree"}
+      ],
+      "affects": [
+        {"to": "read.impact-ids-only-is-bare", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "render.byte-conventions": {
+      "section": "render",
+      "type": "behavior",
+      "status": "active",
+      "key": "The renderer reads the existing md BOM, line-ending and final-newline choices and reproduces them, so a rewrite never shows up as a whole-file diff on a repo that uses CRLF or a BOM.",
+      "keywords": ["bom", "crlf"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/render.py", "symbol": "conventions"},
+        {"kind": "marker", "path": "src/kbgraph/render.py"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "render.check-is-the-gate": {
+      "section": "render",
+      "type": "behavior",
+      "status": "active",
+      "key": "render --check compares the md on disk byte-for-byte against render(store), exits 1 on any difference, and prints the first line that differs on both sides. One test catches both a stale render and a hand-edit, which is why it is what pre-commit runs.",
+      "summary": "`render --check` compares bytes and names the first differing line.",
+      "highlight": true,
+      "keywords": ["drift", "hook"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/render.py", "symbol": "check"},
+        {"kind": "marker", "path": "src/kbgraph/render.py"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "render.derived-sections": {
+      "section": "render",
+      "type": "concept",
+      "status": "active",
+      "key": "Section key knowledge, member lists, related-section lists with edge counts, and the index are all computed at render time from the items. In v1 these were hand-maintained prose and were the single largest source of drift in the file.",
+      "keywords": ["derived", "sections"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/render.py", "symbol": "render_section"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-30", "run": "001"}
+    },
+    "render.legacy-guard": {
+      "section": "render",
+      "type": "edge-case",
+      "status": "active",
+      "key": "Any write that would overwrite a schema-1 knowledgebase.md refuses, since it would discard content that was never migrated. render --force is the deliberate override; migrate is exempt, as replacing the file it just consumed is its job.",
+      "keywords": ["migrate", "v1"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/render.py", "symbol": "LegacyRender"}
+      ],
+      "affects": [
+        {"to": "migrate.one-way-only", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "search.code-dir-bias": {
+      "section": "search",
+      "type": "behavior",
+      "status": "active",
+      "key": "Passing --code multiplies the score of items anchored in the same directory by 1.6, on the observation that the rules governing a file are usually recorded against its neighbours.",
+      "keywords": ["dup", "relate"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/search.py", "symbol": "score"},
+        {"kind": "marker", "path": "src/kbgraph/search.py"}
+      ],
+      "affects": [
+        {"to": "search.idf-bag", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "search.find-is-literal": {
+      "section": "search",
+      "type": "concept",
+      "status": "active",
+      "key": "find is a literal regex match over chosen fields and answers where does this string appear. dup, relate and ctx --query score by relevance and answer what is about this. Looking for a near-duplicate with find is the mistake the two-command split exists to prevent, because a restatement in different words matches nothing.",
+      "summary": "find matches; dup, relate and ctx --query score.",
+      "keywords": ["dup", "search"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/read.py", "symbol": "cmd_find"}
+      ],
+      "affects": [
+        {"to": "search.idf-bag", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "search.idf-bag": {
+      "section": "search",
+      "type": "concept",
+      "status": "active",
+      "key": "Relevance is an IDF-weighted bag of terms per item, drawn from its key at weight 1, its keywords at 3, its code basenames and symbols at 2 and its own name at 1.5. Identifiers are split on camel-case boundaries so authFetch also matches auth and fetch.",
+      "summary": "An IDF-weighted term bag per item, computed per call.",
+      "highlight": true,
+      "keywords": ["idf", "relevance"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/search.py", "symbol": "item_terms"},
+        {"kind": "marker", "path": "src/kbgraph/search.py"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "search.no-index-on-disk": {
+      "section": "search",
+      "type": "design-choice",
+      "status": "active",
+      "key": "Scores are computed on every call and no index is ever written. At this scale the whole corpus is a few hundred short strings, so the cost is unmeasurable next to a stale index nobody remembers to rebuild.",
+      "keywords": ["idf", "performance"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/search.py", "symbol": "build_idf"}
+      ],
+      "affects": [
+        {"to": "search.idf-bag", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "store.canonical-writer": {
+      "section": "store",
+      "type": "design-choice",
+      "status": "active",
+      "key": "The store is written by a hand-rolled emitter rather than json.dump(indent=2), which would put every edge on four lines and turn a one-word change into a twelve-line diff. Objects whose every value is a scalar or a list of scalars are emitted inline; only containers are indented. Diff quality is a requirement, not a nicety.",
+      "summary": "Leaf objects inline, containers indented: an edge is a one-line diff.",
+      "highlight": true,
+      "keywords": ["diff", "json"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/store.py", "symbol": "dumps"},
+        {"kind": "marker", "path": "src/kbgraph/store.py", "digest": "sha256:c43a8baf0b6475ad"}
+      ],
+      "affects": [
+        {"to": "render.byte-conventions", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-30", "run": "001"}
+    },
+    "store.lint-config-key": {
+      "section": "store",
+      "type": "concept",
+      "status": "active",
+      "key": "The root `lint` key holds two things a graph cannot: per-repo lint thresholds, and the suppressions for findings whose `who` is not an item -- a section, a subsection, a keyword, a path. Item suppressions stay on the item. The key is omitted entirely when both halves are empty, so schema 4 costs an untouched store nothing but its version stamp.",
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/model.py", "symbol": "LintConfig"}
+      ],
+      "affects": [
+        {"to": "lint.suppression-needs-reason", "kind": "constrains"},
+        {"to": "store.unknown-field-rejected", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-07-31", "verified": "2026-07-31", "run": "001"}
+    },
+    "store.schema-1-hard-fail": {
+      "section": "store",
+      "type": "edge-case",
+      "status": "active",
+      "key": "A directory holding a v1 knowledgebase.md and no store raises with a migrate hint rather than being skipped on the way up the tree. kb 4.x carries no dual-format code: a v1 repo either migrates or keeps its own protocol.",
+      "keywords": ["migrate", "v1"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/store.py", "symbol": "MIGRATE_HINT"}
+      ],
+      "affects": [
+        {"to": "migrate.one-way-only", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-31", "verified": "2026-07-29", "run": "001"}
+    },
+    "store.thresholds-are-per-repo": {
+      "section": "store",
+      "type": "design-choice",
+      "status": "active",
+      "key": "Every lint threshold lives in model.THRESHOLDS with a default and is overridable per store through `kb thresholds`, because the number that makes a rule useful differs between a 40-item store and a 400-item one. The name in THRESHOLDS is the store key, the command argument and the flag name at once, so a threshold cannot exist under two spellings.",
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/model.py", "symbol": "THRESHOLDS"}
+      ],
+      "affects": [
+        {"to": "invariants.total-command-surface", "kind": "constrains"},
+        {"to": "store.lint-config-key", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-07-31", "verified": "2026-07-31", "run": "001"}
+    },
+    "store.unknown-field-rejected": {
+      "section": "store",
+      "type": "guardrail",
+      "status": "active",
+      "key": "A field that is not in ITEM_FIELDS or ROOT_FIELDS MUST be rejected at load as a schema error, at both the item and the top level, so a typo cannot survive a round-trip by being quietly carried through the writer.",
+      "keywords": ["schema", "typo"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/store.py", "symbol": "_reject_unknown_fields"}
+      ],
+      "affects": [
+        {"to": "model.validate-is-structural", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-30", "verified": "2026-07-31", "run": "001"}
+    },
+    "store.upward-discovery": {
+      "section": "store",
+      "type": "behavior",
+      "status": "active",
+      "key": "find_store walks up from the working directory looking for knowledgebase.json, so the tool is installed once and works from anywhere inside any repo. --kb overrides it with an explicit path, and $KB_FILE is not consulted in v2.",
+      "summary": "The store is found by walking up from CWD.",
+      "highlight": true,
+      "keywords": ["cwd", "discovery"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/store.py", "symbol": "find_store"},
+        {"kind": "marker", "path": "src/kbgraph/store.py"}
+      ],
+      "affects": [
+        {"to": "cli.no-store-commands", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "store.write-implies-load": {
+      "section": "store",
+      "type": "invariant",
+      "status": "active",
+      "key": "A write kb accepts MUST be a load kb accepts. commit() validates before it serialises and load() validates what it read, both through the same pure validate(), so the only reachable failure is a refused edit and never an unreadable file. This is what bounds validate's scope: it may enforce exactly the invariants every mutation command maintains, because kb cannot repair a store it cannot open.",
+      "code": [
+        {"kind": "marker", "path": "src/kbgraph/write.py"}
+      ],
+      "affects": [
+        {"to": "model.validate-is-structural", "kind": "refines"},
+        {"to": "store.unknown-field-rejected", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-07-31", "verified": "2026-07-31", "run": "001"}
+    },
+    "testing.docs-checker-flag-shapes": {
+      "section": "testing",
+      "type": "edge-case",
+      "status": "active",
+      "key": "_flags classifies a flag by nargs; nargs='?' means the value is OPTIONAL. Counting it as value-taking reported the documented bare `kb lint --baseline` as missing an argument -- the checker was wrong, not the docs.",
+      "keywords": ["argparse", "docs"],
+      "code": [
+        {"kind": "symbol", "path": "tests/test_docs.py", "symbol": "_flags"}
+      ],
+      "affects": [
+        {"to": "directive.documented-examples-are-executed", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-30", "modified": "2026-07-30", "verified": "2026-07-30", "run": "001"}
+    },
+    "testing.drives-the-cli": {
+      "section": "testing",
+      "type": "design-choice",
+      "status": "active",
+      "key": "Almost every test shells out to the CLI and asserts on its stdout, because the CLI surface is the contract the model depends on. A refactor behind it is free; a changed message that a doc quotes is a test failure, which is the point.",
+      "summary": "Tests assert on CLI output, not on internals.",
+      "keywords": ["contract", "tests"],
+      "code": [
+        {"kind": "symbol", "path": "tests/test_v2.py", "symbol": "run"}
+      ],
+      "affects": [
+        {"to": "cli.exit-codes", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "testing.pytest-runner": {
+      "section": "testing",
+      "type": "concept",
+      "status": "active",
+      "key": "The suites are ordinary pytest modules -- plain assert, no custom runner -- so `pytest` is the whole command. ok() and has() survive only to label a check with the sentence it is testing. The package keeps zero runtime dependencies; pytest is the single dev one, from pip install -e '.[test]'.",
+      "summary": "pytest is the runner; the package itself still has zero dependencies.",
+      "highlight": true,
+      "keywords": ["pytest", "tests"],
+      "code": [
+        {"kind": "file", "path": "tests/conftest.py"}
+      ],
+      "affects": [
+        {"to": "testing.drives-the-cli", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "testing.raw-bytes-variant": {
+      "section": "testing",
+      "type": "behavior",
+      "status": "active",
+      "key": "The default harness captures output in text mode, which normalises newlines and would hide exactly the carriage-return bug the console configuration exists to prevent. A raw variant captures bytes for the tests whose subject is the bytes.",
+      "keywords": ["encoding", "tests"],
+      "code": [
+        {"kind": "symbol", "path": "tests/test_v2.py", "symbol": "run_raw"}
+      ],
+      "affects": [
+        {"to": "cli.utf8-lf-console", "kind": "consumes"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "testing.suite-layout": {
+      "section": "testing",
+      "type": "concept",
+      "status": "active",
+      "key": "Two collected files: test_v2.py covers src/kbgraph end to end by shelling out to the CLI, and test_docs.py checks every documented invocation against the live parser. Both ship in a distribution, so a released artifact can be verified in place.",
+      "keywords": ["tests"],
+      "code": [
+        {"kind": "file", "path": "tests/test_v2.py", "digest": "sha256:cfac138a95b8db77"}
+      ],
+      "affects": [
+        {"to": "testing.pytest-runner", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-09-02", "run": "003"}
+    },
+    "write.buffered-output": {
+      "section": "write",
+      "type": "design-choice",
+      "status": "active",
+      "key": "Command summaries are buffered with say() and flushed by commit only once the write is past its guards, because a refused command that has already printed verified or renamed is worse than one that prints nothing.",
+      "keywords": ["guards", "output"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "say"},
+        {"kind": "marker", "path": "src/kbgraph/write.py"}
+      ],
+      "affects": [
+        {"to": "write.validate-before-write", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "write.cap-refused-at-the-write": {
+      "section": "write",
+      "type": "guardrail",
+      "status": "active",
+      "key": "A key past its type's cap MUST be refused by `kb new` and `kb set <id> key`/`type`, not merely warned about later by `key-length`. Over the cap: trim; over 1.5x: split -- usually two rules under one id. `--suppress-length` is the only override, recording a suppression with a basis over the key.",
+      "keywords": ["lint", "write"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "cap_guard"},
+        {"kind": "marker", "path": "src/kbgraph/write.py"}
+      ],
+      "affects": [
+        {"to": "lint.suppression-needs-reason", "kind": "refines"},
+        {"to": "write.suppression-records-its-basis", "kind": "consumes"}
+      ],
+      "meta": {"created": "2026-08-10", "modified": "2026-08-10", "verified": "2026-08-10", "run": "002"}
+    },
+    "write.destructive-needs-yes": {
+      "section": "write",
+      "type": "guardrail",
+      "status": "active",
+      "key": "Deleting an item, clearing an items code refs, removing a section or a glossary entry MUST carry --yes, or --dry-run which satisfies the same guard by writing nothing. Non-destructive mutations apply immediately.",
+      "keywords": ["dry-run", "safety"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "need_yes"},
+        {"kind": "marker", "path": "src/kbgraph/write.py"}
+      ],
+      "affects": [
+        {"to": "cli.global-flags-work-on-both-sides", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "write.dual-dispatch": {
+      "section": "write",
+      "type": "design-choice",
+      "status": "active",
+      "key": "code, kw, section and subsection are one command name each for both sides: if the first positional is one of the verbs THAT command accepts, the write path runs, else the read path does. The verb set is per command, not the union: an unimplemented verb used to fall into the last branch, removal for kw.",
+      "summary": "code, kw and section read or write depending on the first word.",
+      "keywords": ["cli", "dispatch"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "dispatch"},
+        {"kind": "marker", "path": "src/kbgraph/write.py"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-08-10", "verified": "2026-07-30", "run": "002"}
+    },
+    "write.long-value-word-diff": {
+      "section": "write",
+      "type": "design-choice",
+      "status": "active",
+      "key": "Setting key or summary prints a word-level diff with unchanged runs collapsed once either side passes DIFF_THRESHOLD (160 chars); shorter values keep the two-line form every test asserts on. SequenceMatcher runs with autojunk=False, without which a one-word edit in a long key collapses into one opaque replace.",
+      "code": [
+        {"kind": "marker", "path": "src/kbgraph/write.py", "digest": "sha256:43f3932e98c7d946"}
+      ],
+      "affects": [
+        {"to": "write.summary-staleness-nudge", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-30", "modified": "2026-07-30", "verified": "2026-08-10", "run": "002"}
+    },
+    "write.mutations-maintain-their-references": {
+      "section": "write",
+      "type": "invariant",
+      "status": "active",
+      "key": "A command that retires something another key points at MUST repoint or drop those references in the same mutation. kb code rm renumbers lint.ignore[].ref and drops the entry it orphans; kb section rm and rename cascade the root suppressions that name them. A reference the store validates is only enforceable because no command can leave it dangling, and every dropped entry is printed with its reason.",
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "_reindex_ref_suppressions"},
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "_cascade_prefix"}
+      ],
+      "affects": [
+        {"to": "store.write-implies-load", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-08-02", "verified": "2026-07-31", "run": "002"}
+    },
+    "write.one-code-ref-per-flag": {
+      "section": "write",
+      "type": "guardrail",
+      "status": "active",
+      "key": "`--code` and `kb code add` MUST take exactly one ref and refuse every trailing token. Tokens used to be folded into `part`, so `symbol <path> <sym> marker <path>` silently became one ref carrying the other as a label -- four items in this store lost a marker ref that way. A second ref is a second flag.",
+      "keywords": ["cli", "code"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "parse_code"},
+        {"kind": "marker", "path": "src/kbgraph/write.py"}
+      ],
+      "affects": [
+        {"to": "invariants.total-command-surface", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-08-10", "modified": "2026-08-10", "verified": "2026-08-10", "run": "002"}
+    },
+    "write.rename-persists-legacy-names": {
+      "section": "write",
+      "type": "behavior",
+      "status": "active",
+      "key": "Any rename that leaves prose citing the old name records {name, kind, renamed_to, since} in lint.legacy, only when something actually cites it. The entry clears itself once nothing does, or kb legacy rm retires it by hand; reoccupying the name reclaims it.",
+      "keywords": ["legacy", "rename"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "_note_legacy"},
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "_autoclear_legacy"},
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "_reclaim_legacy"}
+      ],
+      "affects": [
+        {"to": "lint.legacy-widens-the-known-section-gate", "kind": "constrains"},
+        {"to": "write.rename-repoints-every-edge", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-08-02", "modified": "2026-08-02", "verified": "2026-08-02", "run": "002"}
+    },
+    "write.rename-refuses-id-collisions": {
+      "section": "write",
+      "type": "guardrail",
+      "status": "active",
+      "key": "A rename's cascade MUST refuse before mutating anything if a derived id would collide with an existing, unrelated item or subsection -- a destination is never guaranteed empty the way a brand-new section is.",
+      "keywords": ["collisions", "rename"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "_rename_prefix"}
+      ],
+      "affects": [
+        {"to": "write.subsection-rename-mirrors-section-rename", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-08-02", "modified": "2026-08-02", "verified": "2026-08-02", "run": "002"}
+    },
+    "write.rename-repoints-every-edge": {
+      "section": "write",
+      "type": "behavior",
+      "status": "active",
+      "key": "rename, move and section rename all re-key the item and repoint every inbound edge, deduping the case where an edge already pointed at the new id. Because membership is the id prefix, move and section rename are renames of every affected member. Prose citations are not repointed; stale-id-mention reports them.",
+      "keywords": ["edges", "rename"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "rename"}
+      ],
+      "affects": [
+        {"to": "lint.id-mentions-need-a-section-prefix", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-30", "verified": "2026-07-29", "run": "001"}
+    },
+    "write.stdin-is-decoded-utf8": {
+      "section": "write",
+      "type": "guardrail",
+      "status": "active",
+      "key": "`--file -` and `--key-file -` MUST decode stdin as UTF-8, NEVER through sys.stdin's own codec -- that is the locale's, cp1252 on Windows. The corruption is silent: a cp1252 read then cp1252 write is byte-identity, so it round-trips to the screen and only reaches the file.",
+      "keywords": ["encoding", "windows"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "read_text"},
+        {"kind": "marker", "path": "src/kbgraph/write.py"}
+      ],
+      "affects": [
+        {"to": "cli.utf8-lf-console", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-08-10", "modified": "2026-08-10", "verified": "2026-08-10", "run": "002"}
+    },
+    "write.subsection-rename-mirrors-section-rename": {
+      "section": "write",
+      "type": "behavior",
+      "status": "active",
+      "key": "kb section rename and kb subsection rename share one cascade: every item id, and every subsection id, nested under the old prefix is re-derived and re-keyed, since a section and a subsection are both just a name that member ids extend. Only a section rename also re-sections each item.",
+      "keywords": ["rename", "subsections"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "_rename_prefix"}
+      ],
+      "affects": [
+        {"to": "write.rename-repoints-every-edge", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-08-02", "modified": "2026-08-02", "verified": "2026-08-02", "run": "002"}
+    },
+    "write.summary-staleness-nudge": {
+      "section": "write",
+      "type": "edge-case",
+      "status": "active",
+      "key": "Setting a key on an item with a summary prints it back, but only once the edit moved at least NUDGE_SHARE (0.2) of the key's words -- a one-word fix does not. meta is per item, not per field, so no lint rule can catch a stale summary.",
+      "keywords": ["lint", "summary"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "cmd_set"},
+        {"kind": "marker", "path": "src/kbgraph/write.py", "digest": "sha256:7ca03ea074fed742"}
+      ],
+      "affects": [
+        {"to": "lint.no-summary-stale-rule", "kind": "relates"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-08-10", "verified": "2026-08-10", "run": "002"}
+    },
+    "write.suppression-records-its-basis": {
+      "section": "write",
+      "type": "behavior",
+      "status": "active",
+      "key": "kb suppress stamps a `basis` on the entry: a digest of exactly the fields the rule reads -- the key, the summary, the keywords, the edge list, or one code ref's identity or content. Per field rather than per item, so adding a keyword does not invalidate a key-length exemption. Rules whose evidence is source text or a store-wide count get no basis and are not checked.",
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/model.py", "symbol": "basis"},
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "cmd_suppress"}
+      ],
+      "affects": [
+        {"to": "lint.suppression-needs-reason", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-07-31", "modified": "2026-07-31", "verified": "2026-07-31", "run": "001"}
+    },
+    "write.touch-and-commit": {
+      "section": "write",
+      "type": "concept",
+      "status": "active",
+      "key": "touch stamps meta.modified and the ambient meta.run on every item a command changed, including the far end of an edge. commit re-validates, writes the store and re-renders the markdown in one call, so the two files cannot drift apart by one command width.",
+      "summary": "Every mutation routes through touch() then commit().",
+      "highlight": true,
+      "keywords": ["mutation", "plumbing"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "commit"},
+        {"kind": "marker", "path": "src/kbgraph/write.py"}
+      ],
+      "affects": [
+        {"to": "render.check-is-the-gate", "kind": "calls"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "write.validate-before-write": {
+      "section": "write",
+      "type": "guardrail",
+      "status": "active",
+      "key": "Every mutation MUST re-validate the whole graph in memory BEFORE a byte is written, and refuse with the problems listed if the result would be malformed. There is therefore no state in which the store is half-updated, and git is the only undo anyone needs.",
+      "summary": "A mutation whose result would be malformed is refused, not half-applied.",
+      "highlight": true,
+      "keywords": ["atomicity", "validation"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "commit"},
+        {"kind": "marker", "path": "src/kbgraph/write.py"}
+      ],
+      "affects": [
+        {"to": "model.validate-is-structural", "kind": "consumes"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-07-29", "run": "001"}
+    },
+    "write.verified-is-not-modified": {
+      "section": "write",
+      "type": "guardrail",
+      "status": "active",
+      "key": "meta.verified MUST only move when someone re-read the item against the code and found it still true, which is what kb verify records -- along with a content digest for every file and marker ref, so code-drift can tell later that the code moved underneath it. Editing an item moves meta.modified and NEVER verified.",
+      "summary": "verify records re-checking; editing an item is not re-checking it.",
+      "highlight": true,
+      "keywords": ["staleness", "verify"],
+      "code": [
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "cmd_verify"}
+      ],
+      "meta": {"created": "2026-07-29", "modified": "2026-07-30", "verified": "2026-07-29", "run": "001"}
+    }
+  }
+}
