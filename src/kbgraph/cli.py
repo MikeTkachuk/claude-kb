@@ -539,8 +539,9 @@ Exits 1 when the two items are in disconnected parts of the graph.""",
                    help="show each item's key under its id")
 
     s = add("code", write.dispatch(read.cmd_code, write.cmd_code_write, "ids",
-                                   verbs=("add", "rm", "clear", "fmt")),
-            "the code an item governs, or add|rm|clear a ref, or fmt the markers",
+                                   verbs=("add", "rm", "clear", "fmt", "mv")),
+            "the code an item governs, or add|rm|clear a ref, mv a path, or "
+            "fmt the markers",
             """\
 With an id: print the item's code refs, and the source of every `marker` ref
 resolved to live line numbers. Refs that are not markers yield no snippet, and
@@ -553,6 +554,14 @@ With a verb first, write instead:
   kb code rm <id> <n>          n is 0-based, as printed by `kb item`
   kb code clear <id> --yes     only for types that need no code ref
   kb code fmt [path...]        tighten and collapse markers; --write applies
+  kb code mv <old> <new>       repoint every ref under a moved file or directory
+
+`code mv` runs after `git mv`, never instead of it: it writes only the store and
+refuses until <new> exists in the tree. One find-and-replace for a file or a
+directory alike: a ref path equal to <old> becomes <new>, and one starting with
+<old>/ has that prefix replaced (src/library is not under src/lib). Refs of
+every kind move, and the suppressions keyed by the path follow them. Prose
+citing <old> is named, not rewritten.
 
 `code fmt` is the one command that writes source, and the narrowest one it could
 be: a `kb:begin` swaps places with a blank line just inside its region, a
@@ -577,6 +586,8 @@ examples:
   kb code rm auth.token 2
   kb code fmt                  whole tree, diff only
   kb code fmt src/kbgraph      one directory
+  kb code mv src/lib/auth.ts src/lib/session.ts
+  kb code mv src/lib src/core  a whole directory
 
 --replace and --yes must trail the positionals: argparse cannot resume a
 variadic positional list after a flag, so `kb code add ID --replace marker
@@ -585,7 +596,7 @@ path` does not parse.
 A type declared `requires_code` cannot end up with zero refs, so `code clear`
 is refused for one; `code add ... --replace` is the atomic way to swap the
 code surface of such an item.""")
-    s.add_argument("ids", nargs="+", metavar="ID|add|rm|clear|fmt",
+    s.add_argument("ids", nargs="+", metavar="ID|add|rm|clear|fmt|mv",
                    help="items to print, or a write verb and its arguments")
     s.add_argument("--max-lines", type=int, default=40, metavar="N",
                    help="cap each snippet at N lines (default: 40)")

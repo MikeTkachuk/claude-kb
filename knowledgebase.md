@@ -11,7 +11,7 @@
 - **[render]** (4) — render.check-is-the-gate
 - **[read]** (5) — read.impact-ids-only-is-bare
 - **[ctx]** (5) — ctx.directives-always-included · ctx.mandatory-first-step · ctx.unanchored-path-is-not-silence
-- **[write]** (17) — write.touch-and-commit · write.validate-before-write · write.verified-is-not-modified
+- **[write]** (19) — write.touch-and-commit · write.validate-before-write · write.verified-is-not-modified
 - **[lint]** (19) — lint.severity-split · lint.suppression-needs-reason
 - **[debt]** (5)
 - **[markers]** (9) — markers.jsx-comment-form · markers.own-line-and-own-language · markers.pair-syntax
@@ -73,7 +73,7 @@ When the graph and the code disagree, the code is right and the graph is stale. 
 - `invariants.sole-interface` — Every question is a command, not a file read.
 - `invariants.total-command-surface` — One command per writable field, in both directions.
 
-**Related:** [render] (4) · [cli] (3) · [directive] (3) · [markers] (3) · [model] (3) · [write] (3) · [ctx] (1) · [lint] (1) · [read] (1) · [store] (1)
+**Related:** [render] (4) · [write] (4) · [cli] (3) · [directive] (3) · [markers] (3) · [model] (3) · [ctx] (1) · [lint] (1) · [read] (1) · [store] (1)
 
 ### invariants.both-files-committed
 `invariant` · `active`
@@ -119,7 +119,7 @@ kb writes source in EXACTLY one command, kb code fmt --write, only to move a mar
 - **Code:**
   - `src/kbgraph/lint.py`
   - `src/kbgraph/markers.py` → `fmt_check`
-- **Constrains:** lint.fix-is-store-only · markers.hand-placed-with-a-printed-pair · markers.only-kind-with-snippets
+- **Constrains:** lint.fix-is-store-only · markers.hand-placed-with-a-printed-pair · markers.only-kind-with-snippets · write.code-mv-follows-the-tree
 - **Refined by:** markers.fmt-touches-markers-and-blanks-only
 
 ### invariants.no-md-parser
@@ -485,7 +485,7 @@ When no item has a code ref to the requested file, ctx says so explicitly and po
 - `write.validate-before-write` — A mutation whose result would be malformed is refused, not half-applied.
 - `write.verified-is-not-modified` — verify records re-checking; editing an item is not re-checking it.
 
-**Related:** [lint] (7) · [model] (4) · [invariants] (3) · [cli] (2) · [directive] (1) · [migrate] (1) · [render] (1) · [store] (1)
+**Related:** [lint] (8) · [invariants] (4) · [model] (4) · [cli] (2) · [directive] (1) · [migrate] (1) · [render] (1) · [store] (1)
 
 ### write.buffered-output
 `design-choice` · `active`
@@ -509,6 +509,29 @@ A key past its type's cap MUST be refused by `kb new` and `kb set <id> key`/`typ
 - **Consumes:** write.suppression-records-its-basis
 - **Refines:** lint.suppression-needs-reason
 - **Affected by:** —
+
+### write.code-mv-follows-the-tree
+`guardrail` · `active`
+
+`kb code mv OLD NEW` MUST write only the store, and only once NEW exists in the tree: it refuses when NEW is missing, when no ref or root suppression names OLD, or when the move would duplicate a ref or a suppression. The move itself is `git mv`, made first, so the graph never asserts a path that is not there.
+
+- **Code:**
+  - `src/kbgraph/write.py` *(marker)*
+  - `src/kbgraph/write.py` → `cmd_code_mv`
+- **Constrains:** write.code-mv-repoints-paths
+- **Constrained by:** invariants.never-writes-source
+
+### write.code-mv-repoints-paths
+`behavior` · `active`
+
+code mv rewrites every ref of every kind whose path is OLD or lies under it by whole segments, so a directory moves in one call. Root suppressions keyed by the path follow it; a per-ref ref-identity basis is re-stamped only if it still matched. Content digests need nothing; prose citing OLD is named, not rewritten.
+
+- **Code:**
+  - `src/kbgraph/write.py` *(marker)*
+  - `src/kbgraph/write.py` → `_moved`
+- **Consumes:** lint.basis-mismatch-suspends
+- **Refines:** write.mutations-maintain-their-references
+- **Constrained by:** write.code-mv-follows-the-tree
 
 ### write.destructive-needs-yes
 `guardrail` · `active`
@@ -550,7 +573,7 @@ A command that retires something another key points at MUST repoint or drop thos
   - `src/kbgraph/write.py` → `_reindex_ref_suppressions`
   - `src/kbgraph/write.py` → `_cascade_prefix`
 - **Refines:** store.write-implies-load
-- **Affected by:** —
+- **Refined by:** write.code-mv-repoints-paths
 
 ### write.one-code-ref-per-flag
 `guardrail` · `active`
@@ -677,7 +700,7 @@ meta.verified MUST only move when someone re-read the item against the code and 
 - `lint.severity-split` — Only errors move the exit code; warnings are a backlog.
 - `lint.suppression-needs-reason` — A suppression without a reason is refused.
 
-**Related:** [write] (7) · [debt] (4) · [markers] (4) · [store] (2) · [cli] (1) · [invariants] (1) · [read] (1)
+**Related:** [write] (8) · [debt] (4) · [markers] (4) · [store] (2) · [cli] (1) · [invariants] (1) · [read] (1)
 
 ### lint.basis-mismatch-suspends
 `guardrail` · `active`
@@ -689,6 +712,7 @@ A suppression carrying a basis is SUSPENDED once that basis stops matching: the 
   - `src/kbgraph/lint.py` *(marker)*
 - **Consumes:** write.suppression-records-its-basis
 - **Relates to:** write.verified-is-not-modified
+- **Consumed by:** write.code-mv-repoints-paths
 - **Refined by:** lint.two-rules-cannot-be-suppressed
 
 ### lint.edge-kinds-are-judged-per-section

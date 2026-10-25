@@ -675,7 +675,9 @@ def _file_rules(g, add, res):
                 # nothing to stat.
                 continue
             if not os.path.exists(os.path.join(root, p.replace("/", os.sep))):
-                add("code-path", it.id, "%s does not exist" % ref.path, it, idx)
+                add("code-path", it.id,
+                    "%s does not exist -- if it moved: kb code mv %s <new-path>"
+                    % (ref.path, p), it, idx)
 
     for it in g.items.values():
         for idx, ref in enumerate(it.code):

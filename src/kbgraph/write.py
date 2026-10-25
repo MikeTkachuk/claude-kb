@@ -31,7 +31,7 @@ from .model import CODE_KINDS, CodeRef, Edge, Item, SchemaError, Subsection
 # `tests/test_docs.py`, which must treat a documented verb as a mutation
 # whichever command carries it.
 VERBS = ("add", "rm", "clear", "new", "rename", "order", "label", "summary",
-         "kind", "set", "reset", "fmt")
+         "kind", "set", "reset", "fmt", "mv")
 
 
 def die(msg, code=2):
@@ -1226,13 +1226,115 @@ def cmd_code_fmt(g, a, paths):
     flush()
 
 
+# kb:begin write.code-mv-repoints-paths
+def _moved(path, old, new):
+    """`path` rewritten for a move of `old` to `new`, or None if it misses.
+
+    Whole segments only: `src/lib` carries `src/lib` and `src/lib/a.ts`, never
+    `src/library/a.ts`. A glob under `old` moves like any other path.
+    """
+    p = (path or "").replace("\\", "/").rstrip("/")
+    if p == old:
+        return new
+    if p.startswith(old + "/"):
+        return new + p[len(old):]
+    return None
+
+
+def cmd_code_mv(g, a, rest):
+    """`kb code mv OLD NEW` -- follow a file or directory the tree moved.
+
+    Store-only, like `lint --fix`: the move itself is `git mv`, made first, and
+    NEW must already be in the tree, so the command cannot leave the graph
+    asserting a path that is not there. Every code ref on every item whose path
+    is OLD or sits under it is rewritten, of every kind.
+
+    What is keyed by the old path moves with it, in the same mutation: a root
+    suppression whose `who` is the path, and the basis of a per-ref
+    `ref-identity` exemption -- which digests the path, so leaving it would
+    suspend an exemption whose subject only changed address. A basis that
+    already disagreed is left alone: it was suspended before the move, and
+    re-stamping it would revive it without anyone re-reading the reason.
+    Content digests (the verified `digest`, `ref-content` bases) hash the file,
+    not its name, and need nothing. Prose is not rewritten; keys citing OLD are
+    named so a human can decide.
+    """
+    if len(rest) != 2:
+        die("kb code mv <old-path> <new-path>  -- move it in the tree first "
+            "(git mv), then repoint the store")
+    old, new = [x.replace("\\", "/").rstrip("/") for x in rest]
+    if not old or not new:
+        die("kb code mv needs two non-empty paths, relative to %s" % g.root)
+    if old == new:
+        die("%s is already where it is -- nothing to move" % old)
+    hits = []
+    for it in sorted(g.items.values(), key=lambda i: i.id):
+        for idx, c in enumerate(it.code):
+            to = _moved(c.path, old, new)
+            if to is not None:
+                hits.append((it, idx, to))
+    roots = [x for x in g.lint.ignore
+             if _moved(x.get("who"), old, new) is not None]
+    if not hits and not roots:
+        die("no code ref names %s or anything under it -- `kb find %s "
+            "--field code` lists the refs that do exist" % (old, old))
+    # kb:begin write.code-mv-follows-the-tree
+    if not os.path.exists(os.path.join(g.root, new.replace("/", os.sep))):
+        die("%s does not exist under %s -- kb never moves source: move it "
+            "first (git mv %s %s), then re-run" % (new, g.root, old, new))
+    for it, idx, to in hits:
+        c = it.code[idx]
+        for j, d in enumerate(it.code):
+            if j != idx and d.kind == c.kind and d.symbol == c.symbol \
+                    and (_moved(d.path, old, new) or d.path) == to:
+                die("%s would hold %s twice -- `kb code rm %s %d` drops the "
+                    "old ref first" % (it.id, CodeRef(c.kind, to, c.symbol),
+                                       it.id, idx))
+    for x in roots:
+        to = _moved(x["who"], old, new)
+        if any(y.get("who") == to and y.get("rule") == x.get("rule")
+               for y in g.lint.ignore):
+            die("%s is already suppressed on %s -- `kb suppress --who %s "
+                "--rule %s --remove` drops the old entry first"
+                % (x.get("rule"), to, x["who"], x.get("rule")))
+    # kb:end write.code-mv-follows-the-tree
+    touched = {}
+    for it, idx, to in hits:
+        c = it.code[idx]
+        follow = [x for x in it.lint.get("ignore", [])
+                  if x.get("ref") == idx and x.get("basis")
+                  and model_mod.BASIS_FIELDS.get(x.get("rule")) == "ref-identity"
+                  and x["basis"] == model_mod.basis(g, it, x["rule"], idx)]
+        say("%s code %d: %s → %s" % (it.id, idx, c.path, to))
+        c.path = to
+        for x in follow:
+            x["basis"] = model_mod.basis(g, it, x["rule"], idx)
+            say("  %s suppression re-stamped against the new path" % x["rule"])
+        touched[it.id] = it
+    for x in roots:
+        to = _moved(x["who"], old, new)
+        say("suppression %s on %s → %s" % (x.get("rule"), x["who"], to))
+        x["who"] = to
+    for it in sorted(g.items.values(), key=lambda i: i.id):
+        if old in (it.key or "") or old in (it.summary or ""):
+            say("  note: %s cites %s in its prose, which is not rewritten -- "
+                "`kb set %s key` if it should follow" % (it.id, old, it.id))
+    say("%d code ref(s) on %d item(s) repointed, %d root suppression(s) "
+        "followed" % (len(hits), len(touched), len(roots)))
+    touch(g, *touched.values())
+    commit(g, a, "code mv")
+# kb:end write.code-mv-repoints-paths
+
+
 def cmd_code_write(g, a, verb, rest):
+    # Both take paths, not an id, so they branch before `g.get`.
     if verb == "fmt":
-        # Takes paths, not an id, so it branches before `g.get`.
         return cmd_code_fmt(g, a, rest)
+    if verb == "mv":
+        return cmd_code_mv(g, a, rest)
     if not rest:
         die("kb code add <id> <kind> <path> [symbol] | code rm <id> <n> | "
-            "code clear <id> | code fmt [path...]")
+            "code clear <id> | code fmt [path...] | code mv <old> <new>")
     it = g.get(rest[0])
     rest = rest[1:]
     if verb == "add":

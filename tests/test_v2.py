@@ -2840,6 +2840,144 @@ def test_lint_config_store():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_code_mv_file():
+    print("write: code mv follows a moved file")
+    tmp, p = setup_write()
+    try:
+        _touch(tmp, "src/lib/http.ts", "const x = 1;\n")
+        rc, o = run(p, "code", "mv", "src/lib/api.ts", "src/lib/http.ts")
+        ok("code mv succeeds once the new path exists", rc == 0, o)
+        has("and names every ref it moved", o,
+            "auth.single-fetch-path code 0: src/lib/api.ts → src/lib/http.ts",
+            "auth.single-fetch-path code 1: src/lib/api.ts → src/lib/http.ts",
+            "2 code ref(s) on 1 item(s)")
+        code = _item(p, "auth.single-fetch-path")["code"]
+        ok("every kind follows, and the symbol is kept",
+           [(c["kind"], c["path"], c.get("symbol")) for c in code]
+           == [("marker", "src/lib/http.ts", None),
+               ("symbol", "src/lib/http.ts", "authFetch")], str(code))
+        ok("an unrelated ref is untouched",
+           _item(p, "auth.token")["code"]
+           == [{"kind": "file", "path": "src/lib/auth.ts"}],
+           str(_item(p, "auth.token")["code"]))
+        rc, o = run(p, "render", "--check")
+        ok("the store and its render were written together", rc == 0, o)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_code_mv_directory():
+    print("write: code mv moves a directory by whole segments")
+    tmp, p = setup_write()
+    try:
+        rc, o = run(p, "code", "add", "auth.gate", "file", "src/library/x.ts")
+        ok("setup: a sibling whose name shares the prefix", rc == 0, o)
+        _touch(tmp, "src/core/api.ts")
+        rc, o = run(p, "code", "mv", "src/lib/", "src/core")
+        ok("a directory moves in one call", rc == 0, o)
+        has("counting every ref under it", o, "5 code ref(s) on 4 item(s)")
+        paths = {iid: [c["path"] for c in it.get("code", [])]
+                 for iid, it in _store(p)["items"].items()}
+        ok("every ref under src/lib moved",
+           paths["auth.single-fetch-path"]
+           == ["src/core/api.ts", "src/core/api.ts"]
+           and paths["auth.token"] == ["src/core/auth.ts"]
+           and paths["api.fetcher"] == ["src/core/swr.ts"]
+           and paths["api.errors"] == ["src/core/types.ts"], str(paths))
+        ok("src/library is not under src/lib",
+           paths["auth.gate"] == ["src/hooks/useAuth.ts", "src/library/x.ts"],
+           str(paths["auth.gate"]))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_code_mv_refusals():
+    print("write: code mv refuses rather than half-moves")
+    tmp, p = setup_write()
+    try:
+        before = read(p)
+        rc, o = run(p, "code", "mv", "src/lib/api.ts", "src/lib/http.ts")
+        ok("a new path missing from the tree is refused", rc == 2, o)
+        has("and the remedy is to move it first", o, "does not exist", "git mv")
+        rc, o = run(p, "code", "mv", "src/nowhere.ts", "src/elsewhere.ts")
+        ok("a path nothing names is refused",
+           rc == 2 and "no code ref names src/nowhere.ts" in o, o)
+        rc, o = run(p, "code", "mv", "src/lib/api.ts", "src/lib/api.ts")
+        ok("a move onto itself is refused",
+           rc == 2 and "nothing to move" in o, o)
+        rc, o = run(p, "code", "mv", "src/lib/api.ts")
+        ok("one path is a usage error",
+           rc == 2 and "kb code mv <old-path> <new-path>" in o, o)
+        ok("no refusal wrote anything", read(p) == before)
+
+        rc, o = run(p, "code", "add", "auth.token", "file", "src/lib/session.ts")
+        ok("setup: the item already names the target", rc == 0, o)
+        _touch(tmp, "src/lib/session.ts")
+        before = read(p)
+        rc, o = run(p, "code", "mv", "src/lib/auth.ts", "src/lib/session.ts")
+        ok("a move that would duplicate a ref is refused", rc == 2, o)
+        has("naming the ref to drop first", o,
+            "auth.token would hold", "kb code rm auth.token 0")
+        ok("and wrote nothing", read(p) == before)
+
+        _touch(tmp, "src/lib/http.ts")
+        rc, o = run(p, "--dry-run", "code", "mv", "src/lib/api.ts",
+                    "src/lib/http.ts")
+        ok("--dry-run previews the move", rc == 0 and "dry run" in o, o)
+        ok("and writes nothing", read(p) == before)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_code_mv_carries_suppressions():
+    print("write: code mv carries the suppressions keyed by the path")
+    tmp, p = setup_write()
+    try:
+        rc, o = run(p, "suppress", "--who", "auth.token", "--rule", "code-path",
+                    "--ref", "0", "--reason", "generated at build time")
+        ok("setup: a per-ref exemption granted against the path", rc == 0, o)
+        rc, o = run(p, "suppress", "--who", "src/lib/auth.ts", "--rule",
+                    "marker-syntax", "--reason", "vendored comment style")
+        ok("setup: a root exemption keyed by the path", rc == 0, o)
+        old = [x for x in _item(p, "auth.token")["lint"]["ignore"]
+               if x["rule"] == "code-path"][0]["basis"]
+
+        _touch(tmp, "src/lib/session.ts")
+        rc, o = run(p, "code", "mv", "src/lib/auth.ts", "src/lib/session.ts")
+        ok("the move succeeds", rc == 0, o)
+        has("and reports both follow-ups", o,
+            "code-path suppression re-stamped",
+            "suppression marker-syntax on src/lib/auth.ts → src/lib/session.ts")
+        ign = _item(p, "auth.token")["lint"]["ignore"]
+        entry = [x for x in ign if x["rule"] == "code-path"][0]
+        ok("the identity basis moved with the path",
+           entry["basis"] != old and entry["ref"] == 0, str(ign))
+        ok("the item-wide key-length exemption is untouched",
+           any(x["rule"] == "key-length" and "ref" not in x for x in ign),
+           str(ign))
+        whos = [x["who"] for x in _store(p)["lint"]["ignore"]]
+        ok("the root entry follows the path",
+           "src/lib/session.ts" in whos and "src/lib/auth.ts" not in whos,
+           str(whos))
+        rc, o = run(p, "lint", "--rule", "suppress-stale")
+        ok("so the per-ref exemption does not read as stale",
+           "auth.token" not in o, o)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_code_path_names_code_mv():
+    print("lint: code-path points at code mv")
+    tmp, p = setup_write()
+    try:
+        rc, o = run(p, "lint", "--rule", "code-path")
+        has("a missing path suggests the move command", o,
+            "src/lib/auth.ts does not exist -- if it moved: "
+            "kb code mv src/lib/auth.ts <new-path>")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_suppress_who_and_ref():
     print("suppress: item, graph-level, per-ref, and the guards")
     tmp = tempfile.mkdtemp()

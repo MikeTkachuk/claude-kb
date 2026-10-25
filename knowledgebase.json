@@ -420,15 +420,16 @@
       "highlight": true,
       "keywords": ["invariant", "markers"],
       "code": [
-        {"kind": "file", "path": "src/kbgraph/lint.py", "digest": "sha256:41f70e9b4409c108"},
+        {"kind": "file", "path": "src/kbgraph/lint.py", "digest": "sha256:8b09cd3063804cd3"},
         {"kind": "symbol", "path": "src/kbgraph/markers.py", "symbol": "fmt_check"}
       ],
       "affects": [
         {"to": "lint.fix-is-store-only", "kind": "constrains"},
         {"to": "markers.hand-placed-with-a-printed-pair", "kind": "constrains"},
-        {"to": "markers.only-kind-with-snippets", "kind": "constrains"}
+        {"to": "markers.only-kind-with-snippets", "kind": "constrains"},
+        {"to": "write.code-mv-follows-the-tree", "kind": "constrains"}
       ],
-      "meta": {"created": "2026-07-29", "modified": "2026-08-10", "verified": "2026-08-10", "run": "002"}
+      "meta": {"created": "2026-07-29", "modified": "2026-10-24", "verified": "2026-10-24", "run": "003"}
     },
     "invariants.no-md-parser": {
       "section": "invariants",
@@ -1390,12 +1391,12 @@
       "key": "Two collected files: test_v2.py covers src/kbgraph end to end by shelling out to the CLI, and test_docs.py checks every documented invocation against the live parser. Both ship in a distribution, so a released artifact can be verified in place.",
       "keywords": ["tests"],
       "code": [
-        {"kind": "file", "path": "tests/test_v2.py", "digest": "sha256:cfac138a95b8db77"}
+        {"kind": "file", "path": "tests/test_v2.py", "digest": "sha256:57019c2e61c9769d"}
       ],
       "affects": [
         {"to": "testing.pytest-runner", "kind": "relates"}
       ],
-      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-09-02", "run": "003"}
+      "meta": {"created": "2026-07-29", "modified": "2026-07-29", "verified": "2026-10-24", "run": "003"}
     },
     "write.buffered-output": {
       "section": "write",
@@ -1427,6 +1428,39 @@
         {"to": "write.suppression-records-its-basis", "kind": "consumes"}
       ],
       "meta": {"created": "2026-08-10", "modified": "2026-08-10", "verified": "2026-08-10", "run": "002"}
+    },
+    "write.code-mv-follows-the-tree": {
+      "section": "write",
+      "type": "guardrail",
+      "status": "active",
+      "key": "`kb code mv OLD NEW` MUST write only the store, and only once NEW exists in the tree: it refuses when NEW is missing, when no ref or root suppression names OLD, or when the move would duplicate a ref or a suppression. The move itself is `git mv`, made first, so the graph never asserts a path that is not there.",
+      "summary": "code mv repoints the store after a git mv and never moves a file.",
+      "keywords": ["git", "rename"],
+      "code": [
+        {"kind": "marker", "path": "src/kbgraph/write.py"},
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "cmd_code_mv"}
+      ],
+      "affects": [
+        {"to": "write.code-mv-repoints-paths", "kind": "constrains"}
+      ],
+      "meta": {"created": "2026-10-24", "modified": "2026-10-24", "verified": "2026-10-24", "run": "003"}
+    },
+    "write.code-mv-repoints-paths": {
+      "section": "write",
+      "type": "behavior",
+      "status": "active",
+      "key": "code mv rewrites every ref of every kind whose path is OLD or lies under it by whole segments, so a directory moves in one call. Root suppressions keyed by the path follow it; a per-ref ref-identity basis is re-stamped only if it still matched. Content digests need nothing; prose citing OLD is named, not rewritten.",
+      "summary": "One call repoints a file or a directory, and what is keyed by its path.",
+      "keywords": ["rename", "suppress"],
+      "code": [
+        {"kind": "marker", "path": "src/kbgraph/write.py"},
+        {"kind": "symbol", "path": "src/kbgraph/write.py", "symbol": "_moved"}
+      ],
+      "affects": [
+        {"to": "lint.basis-mismatch-suspends", "kind": "consumes"},
+        {"to": "write.mutations-maintain-their-references", "kind": "refines"}
+      ],
+      "meta": {"created": "2026-10-24", "modified": "2026-10-24", "verified": "2026-10-24", "run": "003"}
     },
     "write.destructive-needs-yes": {
       "section": "write",

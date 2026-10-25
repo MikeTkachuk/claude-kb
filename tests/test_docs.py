@@ -64,7 +64,7 @@ READ_ONLY = {
 # drift: a verb missing here is a documented mutation that the live pass would
 # execute against this repo's own store.
 WRITE_VERBS = {"add", "rm", "clear", "new", "rename", "order", "label",
-               "summary", "kind", "set", "write", "reset", "fmt"}
+               "summary", "kind", "set", "write", "reset", "fmt", "mv"}
 
 VERBOSE = "-v" in sys.argv
 PASS, FAIL = [0], []
