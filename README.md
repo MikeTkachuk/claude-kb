@@ -291,6 +291,32 @@ different items may overlap and nest freely. Two regions merge only if their
 line ranges genuinely intersect — regions a few lines apart are apart for a
 reason.
 
+### `kb code mv`
+
+Moving or renaming a file leaves every ref to it dangling: `code-path` for file
+and symbol refs, `marker-missing` for markers. Move the file first, then repoint
+the store in one call:
+
+```
+kb code mv src/lib/auth.ts src/lib/session.ts
+kb code mv src/lib src/core  a whole directory
+```
+
+The rule is one find-and-replace, the same for a file and a directory — `kb`
+never asks which one OLD is. A stored path moves when it **equals** OLD
+(replaced whole) or **starts with OLD followed by `/`** (that prefix replaced):
+
+| stored path | `kb code mv src/lib src/core` |
+|---|---|
+| `src/lib/auth.ts` | `src/core/auth.ts` |
+| `src/lib` | `src/core` |
+| `src/library/x.ts` | unchanged — no `/` right after `src/lib` |
+
+This applies to refs of every kind, globs included. Root suppressions keyed by the path follow it, and a
+per-ref exemption granted against the path is re-stamped so it does not read as
+stale. `kb` never moves the file itself: the command is refused until the new
+path exists, and prose citing the old path is named rather than rewritten.
+
 ## Command reference
 
 Every command carries `--help` with a description and, where it earns one, a
@@ -372,7 +398,7 @@ command whose result would be malformed is refused rather than half-applied.
 | `type` `status` `key` `summary` | `kb set <id> <field> <value>` (or `--file -`) |
 | `highlight` | `kb highlight <id>… [--off]` |
 | `keywords` | `kb kw add\|rm <id> <term>…` |
-| `code[]` | `kb code add\|rm\|clear <id> …` — `rm` takes a **0-based** index, as `kb item` prints it |
+| `code[]` | `kb code add\|rm\|clear <id> …` — `rm` takes a **0-based** index, as `kb item` prints it · `kb code mv <old> <new>` after a `git mv` |
 | `affects[]` | `kb edge add\|rm\|kind <a> <b> [--kind K]` |
 | `meta.verified` | `kb verify <id>… [--date D]` |
 | `meta.run` | `kb run [NNN]` |

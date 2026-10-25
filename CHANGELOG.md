@@ -10,6 +10,17 @@ Every `kb …` example below is checked against the live argument parser by
 disappears in a later version has to be edited out of the entry that introduced
 it, or the suite fails.
 
+## [4.4.0] — 2026-10-24
+
+### Added
+
+- **`kb code mv OLD NEW`** — repoints every code ref after a `git mv`, of
+  every kind, for a file or a whole directory (whole path segments, so
+  `src/lib` never matches `src/library`). Store-only: refused until NEW exists
+  in the tree. Root suppressions keyed by the path follow it, and per-ref
+  `ref-identity` bases are re-stamped when they still matched. The `code-path`
+  lint message now names the command.
+
 ## [4.3.0] — 2026-08-10
 
 A CLI-native way to read the manual and the changelog once `kb` is installed,
